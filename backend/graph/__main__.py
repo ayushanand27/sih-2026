@@ -12,11 +12,12 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 from graph.build_graph import build_graph
+from graph.state import DEFAULT_FLAGS
 
 
 def run(query: str) -> None:
     app = build_graph()
-    result = app.invoke({"query": query, "history": [], "flags": {}})
+    result = app.invoke({"query": query, "history": [], "flags": dict(DEFAULT_FLAGS)})
 
     print(f"\nQuery: {query!r}\n")
     print("--- Answer ---")

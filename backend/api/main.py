@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from graph.build_graph import build_graph
+from graph.state import DEFAULT_FLAGS
 from ingestion.indexer import run as run_ingestion
 
 load_dotenv()
@@ -74,10 +75,17 @@ class Citation(BaseModel):
     section_heading: str
 
 
+class Flags(BaseModel):
+    # The authoritative way to detect an abstention — see docs/API_CONTRACT.md.
+    abstained: bool = False
+    # True if the bounded retry-once path fired (weak initial rerank score).
+    retried: bool = False
+
+
 class QueryResponse(BaseModel):
     answer: str
     citations: list[Citation]
-    flags: dict
+    flags: Flags
 
 
 class IngestRequest(BaseModel):
@@ -98,7 +106,7 @@ async def query(req: QueryRequest):
         result = await asyncio.wait_for(
             run_in_threadpool(
                 app_graph.invoke,
-                {"query": req.question, "history": history, "flags": {}},
+                {"query": req.question, "history": history, "flags": dict(DEFAULT_FLAGS)},
             ),
             timeout=REQUEST_TIMEOUT,
         )

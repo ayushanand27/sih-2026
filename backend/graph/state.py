@@ -20,3 +20,11 @@ class GraphState(TypedDict, total=False):
     answer: str
     citations: list[dict]
     flags: dict
+
+
+# Callers must seed state with this, not {} — nodes only ever set flags they
+# have a reason to change (e.g. retry_rewrite_query only runs on the retry
+# path), so starting from {} means "retried" is simply absent from the
+# response on the common no-retry path instead of present-and-False. That
+# makes the API response shape inconsistent for callers checking flags["retried"].
+DEFAULT_FLAGS = {"abstained": False, "retried": False}
