@@ -26,7 +26,7 @@ logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 _client: Groq | None = None
 
@@ -43,18 +43,20 @@ def _get_client() -> Groq:
     return _client
 
 
-def generate(query: str, chunks: list[dict]) -> str:
-    """Call Groq with the grounded prompt and return the raw answer text."""
+def complete(user_prompt: str, system_prompt: str | None = None) -> str:
+    """Raw Groq chat completion. Used by generate() below, and by the
+    graph's query-rewrite nodes, which need a plain LLM call with no
+    retrieval involved."""
     client = _get_client()
-    user_prompt = build_user_prompt(query, chunks)
+    messages = []
+    if system_prompt:
+        messages.append({"role": "system", "content": system_prompt})
+    messages.append({"role": "user", "content": user_prompt})
 
     try:
         response = client.chat.completions.create(
             model=GROQ_MODEL,
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
+            messages=messages,
             temperature=0.0,
         )
     except Exception as exc:
@@ -64,6 +66,11 @@ def generate(query: str, chunks: list[dict]) -> str:
         ) from exc
 
     return response.choices[0].message.content.strip()
+
+
+def generate(query: str, chunks: list[dict]) -> str:
+    """Call Groq with the grounded prompt and return the raw answer text."""
+    return complete(build_user_prompt(query, chunks), system_prompt=SYSTEM_PROMPT)
 
 
 if __name__ == "__main__":
