@@ -60,7 +60,7 @@ Local model is primary because venue WiFi fails. Cloud is an enhancement, never 
 
 ```
 ip-sakti/
-├── CLAUDE.md
+├── idea.md
 ├── backend/
 │   ├── ingestion/        loader.py, chunker.py, indexer.py    [DONE, tested]
 │   ├── retrieval/        bm25_search.py, dense_search.py, fusion.py, reranker.py
