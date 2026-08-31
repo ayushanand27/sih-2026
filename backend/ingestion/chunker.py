@@ -38,13 +38,22 @@ OVERLAP_CHARS = 200
 # title so real headings like "Rule 12: Definitions" still match while a
 # sentence fragment — which continues in lowercase with no punctuation
 # break — does not.
+#
+# Pattern 2's title cap was 60 chars, tighter than the page-level 80-char
+# pre-filter below it — so a genuinely numbered heading whose title runs a
+# bit long (e.g. "08.03.05.15 An invention which in effect, is traditional
+# knowledge or Section 3(p)", 82 chars total) was silently skipped, and
+# detect_heading() fell through to a later, unrelated heading further down
+# the same page that happened to be short enough to match. Raised to 90 so
+# the pattern's own cap isn't the binding constraint — the page-level
+# pre-filter (also raised, see below) is.
 HEADING_PATTERNS = [
     re.compile(
         r"^(Section|Rule|Chapter|Clause|Part|Schedule)\s+[\dIVXLC]+"
-        r"(\([\w\-]+\))*(\s*[:.\-–—]\s*[A-Z].{0,60})?$",
+        r"(\([\w\-]+\))*(\s*[:.\-–—]\s*[A-Z].{0,90})?$",
         re.I,
     ),
-    re.compile(r"^\d+(\.\d+)*\s+[A-Z][A-Za-z].{0,60}$"),
+    re.compile(r"^\d+(\.\d+)*\s+[A-Z][A-Za-z].{0,90}$"),
     re.compile(r"^[A-Z][A-Z\s,\-()&]{6,60}$"),
 ]
 
@@ -72,7 +81,16 @@ def detect_heading(text: str) -> str:
     """
     for line in text.split("\n"):
         stripped = line.strip()
-        if not stripped or len(stripped) > 80:
+        # 100, not 80: this is a coarse pre-filter to skip obviously-too-long
+        # lines before running regex matching, not the thing enforcing
+        # "looks like a heading" — each pattern's own `$` anchor already
+        # requires a full-line structural match, so raising this doesn't
+        # relax what counts as heading-shaped. It exists because a real
+        # numbered heading (e.g. "08.03.05.15 An invention which in effect,
+        # is traditional knowledge or Section 3(p)", 82 chars) was being
+        # rejected here before pattern matching even ran, and detect_heading
+        # fell through to a later, unrelated heading on the same page.
+        if not stripped or len(stripped) > 100:
             continue
         for pattern in HEADING_PATTERNS:
             if pattern.match(stripped):
