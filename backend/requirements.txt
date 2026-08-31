@@ -1,0 +1,20 @@
+# Ingestion
+pdfplumber==0.11.4
+rank-bm25==0.2.2
+sentence-transformers==3.3.1
+
+# Database
+psycopg[binary]==3.2.3
+pgvector==0.3.6
+python-dotenv==1.0.1
+
+# API layer (used from Step 7 onward)
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+
+# Orchestration + LLM (used from Step 4 onward)
+langgraph==0.2.60
+langchain-core==0.3.28
+groq==0.13.1
+ollama==0.4.4

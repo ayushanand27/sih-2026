@@ -1,0 +1,82 @@
+"""
+Cross-encoder reranking for IP-SAKTI.
+
+BM25 and dense retrieval each rank chunks by comparing separate embeddings
+or token overlap; a cross-encoder reads the query and a chunk together in one
+forward pass, which is more accurate for real relevance. This is the last
+filter before chunks reach the LLM, so it decides what the model is even
+allowed to answer from.
+
+Usage:
+    python -m retrieval.reranker "Section 3(p) traditional knowledge"
+"""
+
+from __future__ import annotations
+
+import logging
+import os
+import sys
+
+from dotenv import load_dotenv
+from sentence_transformers import CrossEncoder
+
+from retrieval.fusion import search as fused_search
+
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+log = logging.getLogger(__name__)
+
+RERANKER_MODEL = os.getenv("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+_model: CrossEncoder | None = None
+
+
+def _get_model() -> CrossEncoder:
+    """Load and cache the cross-encoder — loaded once, reused across calls."""
+    global _model
+    if _model is None:
+        log.info("Loading cross-encoder %s", RERANKER_MODEL)
+        _model = CrossEncoder(RERANKER_MODEL)
+    return _model
+
+
+def rerank(query: str, candidates: list[dict], top_k: int = 5) -> list[dict]:
+    """Score each (query, chunk_text) pair with the cross-encoder, keep top_k.
+
+    Metadata on each candidate is passed through untouched; only the score
+    and rank fields are added/overwritten.
+    """
+    if not candidates:
+        return []
+
+    model = _get_model()
+    pairs = [(query, candidate["text"]) for candidate in candidates]
+    scores = model.predict(pairs)
+
+    reranked = sorted(zip(candidates, scores), key=lambda pair: pair[1], reverse=True)[:top_k]
+
+    return [
+        {**candidate, "rerank_score": float(score), "rank": rank}
+        for rank, (candidate, score) in enumerate(reranked, start=1)
+    ]
+
+
+def search(query: str, fused_top_k: int = 20, top_k: int = 5) -> list[dict]:
+    """Run the full retrieval + rerank pipeline for a single query."""
+    candidates = fused_search(query, top_k=fused_top_k)
+    return rerank(query, candidates, top_k=top_k)
+
+
+if __name__ == "__main__":
+    query = " ".join(sys.argv[1:]) or "traditional knowledge patent exclusion"
+    results = search(query, top_k=5)
+    print(f"\nReranked results for: {query!r}\n")
+    if not results:
+        print("  (no results)")
+    for r in results:
+        print(
+            f"  #{r['rank']:>2}  {r['rerank_score']:.3f}  {r['chunk_id']}  "
+            f"({r['source_file']} p{r['page_number']})"
+        )
+        print(f"       {r['text'][:150]}...")
