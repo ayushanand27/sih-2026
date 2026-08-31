@@ -29,8 +29,21 @@ OVERLAP_CHARS = 200
 
 # Headings common in Indian regulatory documents: "Section 3(p)", "Rule 12",
 # "Chapter IV", "5.2 Scope", or a short ALL CAPS line.
+#
+# Pattern 1 previously had no end anchor, so `.match()` treated it as a
+# prefix test: any body sentence starting with "Section 33 of the Drugs
+# and Cosmetics Act..." matched, and detect_heading() returned the whole
+# sentence as the "heading". The other two patterns already end in `$`
+# (whole-line match); this one now does too, with a bounded optional
+# title so real headings like "Rule 12: Definitions" still match while a
+# sentence fragment — which continues in lowercase with no punctuation
+# break — does not.
 HEADING_PATTERNS = [
-    re.compile(r"^(Section|Rule|Chapter|Clause|Part|Schedule)\s+[\dIVXLC]+[\w()\.\-]*", re.I),
+    re.compile(
+        r"^(Section|Rule|Chapter|Clause|Part|Schedule)\s+[\dIVXLC]+"
+        r"(\([\w\-]+\))*(\s*[:.\-–—]\s*[A-Z].{0,60})?$",
+        re.I,
+    ),
     re.compile(r"^\d+(\.\d+)*\s+[A-Z][A-Za-z].{0,60}$"),
     re.compile(r"^[A-Z][A-Z\s,\-()&]{6,60}$"),
 ]
