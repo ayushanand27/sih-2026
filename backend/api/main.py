@@ -6,6 +6,21 @@ synchronous (it calls blocking retrieval/generation code), so /query runs it
 in a thread pool under a hard wall-clock timeout, instead of blocking the
 event loop or hanging forever if an LLM backend stalls.
 
+Known limitation: asyncio.wait_for's timeout only stops *waiting* on the
+thread-pool future — it does not, and cannot, kill the underlying thread.
+If REQUEST_TIMEOUT fires, the client gets its 504 immediately, but the
+graph invocation keeps running in the background to completion (still
+querying Groq, still hitting the DB) purely wasting resources with no one
+listening for the result. Confirmed by observation, not just reasoning:
+under a query with chat history that also triggered the bounded retry (3
+sequential LLM calls), a request timed out and returned 504, and the
+server log showed the underlying Groq call completing successfully several
+seconds *after* the timeout response had already gone out. Not fixed here
+— would need cooperative cancellation inside the graph nodes (e.g. checking
+a cancellation event between stages), which is more invasive than this
+pass covers. REQUEST_TIMEOUT is set generously specifically to make this
+rare in practice, not to make it impossible.
+
 Usage:
     python -m uvicorn api.main:app --reload
 """
@@ -31,7 +46,16 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
 
-REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "60"))
+# 90s, not 60s: a multi-turn query (chat history present) triggers its own
+# rewrite LLM call before retrieval even starts, and the bounded retry can
+# add a second rewrite call on top of that — up to 3 sequential LLM calls
+# in the worst case (rewrite, retry-rewrite, generate), each capable of
+# taking close to OLLAMA_TIMEOUT even when it succeeds (observed: calls
+# completing in 14-16s against a 15s nominal timeout). At 60s, a real
+# request that would have succeeded got killed with a 504 instead -
+# reproduced directly, not estimated. 90s covers that worst case with
+# margin; see llm_client.py for the per-call timeout this budgets around.
+REQUEST_TIMEOUT = float(os.getenv("REQUEST_TIMEOUT", "90"))
 CORS_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",")]
 # If unset, /ingest is unauthenticated — fine for local dev, not for a public
 # deployment. Set ADMIN_TOKEN before deploying anywhere reachable from the
