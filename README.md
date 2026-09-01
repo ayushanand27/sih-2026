@@ -17,7 +17,7 @@ regimes are out of scope for this build.
 Independent evaluations of commercial legal AI tools found hallucination
 rates of 17–33% even with retrieval-augmented generation in place. In a
 regulatory domain, a confidently wrong answer is worse than no answer. Four
-decisions follow from that — full reasoning is in [CLAUDE.md](CLAUDE.md):
+decisions follow from that — full reasoning is in [idea.md](idea.md):
 
 1. **Hybrid retrieval** (BM25 + dense embeddings, fused by Reciprocal Rank
    Fusion) instead of dense-only, because legal text needs exact matching on
@@ -69,7 +69,7 @@ up and generating an answer (or abstaining). Never more than one retry.
 ## Repo layout
 
 ```
-├── CLAUDE.md              Standing project context / architecture rationale
+├── idea.md                 Standing project context / architecture rationale
 ├── PROJECT_GUIDE.md        Original team build plan
 ├── README.md               This file
 ├── docs/
