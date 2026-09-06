@@ -65,12 +65,78 @@ def find_ungrounded_references(answer: str, chunks: list[dict]) -> list[str]:
     return sorted(ref for ref in referenced if ref.lower() not in context_text)
 
 
+_SNIPPET_MIN_CHARS = 100
+_SNIPPET_MAX_CHARS = 250
+
+# Ingestion prepends context headers ("[Statute: ...]", "[Chapter: ...]",
+# "[Section: ...]", "[Classification: ...]" — see ingestion/chunker.py) to
+# every chunk's stored text. Strip those before snippeting so the quoted
+# "exact statutory text" a user sees is the actual clause, not our own
+# bracketed metadata about it.
+_HEADER_LINE_PATTERN = re.compile(r"^\[(?:Statute|Chapter|Section|Classification):.*\]\s*$")
+
+
+def _extract_exact_snippet(chunk_text: str) -> str:
+    """
+    Deterministic, verbatim substring of the real indexed chunk text — never
+    LLM-generated, same "can't be hallucinated because it never passes
+    through the model" guarantee as the rest of this module. Truncates to
+    roughly _SNIPPET_MIN_CHARS.._SNIPPET_MAX_CHARS chars, preferring a
+    sentence boundary so the quote reads as a complete clause rather than a
+    mid-word cut, but falls back to a hard cut at _SNIPPET_MAX_CHARS if no
+    such boundary exists in range (short chunks just return their full text).
+    """
+    lines = [
+        line for line in chunk_text.splitlines() if not _HEADER_LINE_PATTERN.match(line.strip())
+    ]
+    body = " ".join(line.strip() for line in lines if line.strip())
+
+    if len(body) <= _SNIPPET_MAX_CHARS:
+        return body
+
+    window = body[:_SNIPPET_MAX_CHARS]
+    boundary = max(window.rfind(". "), window.rfind("; "))
+    if boundary >= _SNIPPET_MIN_CHARS:
+        return window[: boundary + 1]
+    return window.rstrip() + "…"
+
+
+# A tag the model was instructed to copy verbatim from a "[Chunk_ID: ...]"
+# marker (see prompts.py rule 3 / build_user_prompt) — chunk ids in this
+# project are hex sha256-style digests (see ingestion/chunker.py), but the
+# pattern is deliberately loose (any bracketed token with no whitespace) so
+# it still catches a malformed or truncated id instead of silently ignoring it.
+_INLINE_CITATION_TAG_PATTERN = re.compile(r"\[([^\[\]\s]+)\]")
+
+
+def find_invalid_inline_citation_tags(answer: str, chunks: list[dict]) -> list[str]:
+    """
+    Same philosophy as find_ungrounded_references above, applied to the
+    inline "[chunk_id]" tags rule 3 in prompts.py now asks the model to
+    write: a tag is only trustworthy if it names a chunk_id that was
+    actually retrieved for this query. This function never edits or strips
+    the answer text — inline tags are a best-effort reader aid, not the
+    authoritative citation record (attach_citations() above is, and it never
+    reads the model's output at all) — it only reports which emitted tags,
+    if any, don't correspond to a real retrieved chunk, so the caller can log
+    it as a signal the model didn't follow rule 3 correctly.
+    """
+    if not answer or not chunks:
+        return []
+
+    real_ids = {chunk["chunk_id"] for chunk in chunks}
+    tagged = {match.group(1) for match in _INLINE_CITATION_TAG_PATTERN.finditer(answer)}
+    return sorted(tagged - real_ids)
+
+
 def attach_citations(chunks: list[dict]) -> list[dict]:
     """Build the source list from retrieved chunks, deduped by chunk_id.
 
     Takes only the chunks the retrieval pipeline actually returned — the
     model has no input into which chunks appear here or what their metadata
-    says.
+    says. `exact_snippet` is likewise sliced directly from the retrieved
+    chunk's own `text` field in code (_extract_exact_snippet above) — it is
+    not something the LLM writes or paraphrases.
     """
     seen: set[str] = set()
     citations = []
@@ -85,6 +151,7 @@ def attach_citations(chunks: list[dict]) -> list[dict]:
                 "source_file": chunk["source_file"],
                 "page_number": chunk["page_number"],
                 "section_heading": chunk["section_heading"],
+                "exact_snippet": _extract_exact_snippet(chunk.get("text", "")),
             }
         )
     return citations

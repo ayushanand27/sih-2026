@@ -26,6 +26,8 @@ was simply wrong once it was.
 
 from __future__ import annotations
 
+import re
+
 # Fixed prefix the model must use verbatim when abstaining, so the caller can
 # detect abstention with a plain string check instead of parsing free text.
 ABSTENTION_MARKER = "I could not find this in my sources."
@@ -50,6 +52,28 @@ def append_disclaimer(answer: str) -> str:
     return answer + DISCLAIMER
 
 
+def append_formulation_notes(answer: str, formulation_notes: list[str] | None) -> str:
+    """Append graph.formulation.triage_formulation()'s deterministic,
+    code-authored formulation_notes (e.g. CUSTOM_COMBINATION_NOTE) directly
+    in code — same reasoning as append_disclaimer above: this text cites
+    exact statute section numbers, so it's appended verbatim here rather
+    than only handed to the LLM as prompt framing and hoped for. The LLM
+    also sees these notes via build_user_prompt's framing block and may
+    already have woven the same point into its own prose — this still
+    appends the canonical, guaranteed-correct wording so the caller/UI
+    always has it exactly as written, never a paraphrase. Call BEFORE
+    append_disclaimer, so the disclaimer stays the last thing in the
+    answer either way. Idempotent per-note, same as append_disclaimer."""
+    if not formulation_notes:
+        return answer
+    result = answer
+    for note in formulation_notes:
+        marked = f"\n\n{note}"
+        if not result.endswith(note):
+            result += marked
+    return result
+
+
 SYSTEM_PROMPT = f"""You are IP-SAKTI Sahayak, an assistant that answers questions about \
 Intellectual Property and regulatory guidance for Ayurveda in India, using ONLY the \
 context provided below.
@@ -68,13 +92,22 @@ question that would help narrow the search (for example, naming a specific \
 act, section, or topic). Do not guess, infer beyond what is stated, or fill \
 the gap with outside knowledge.
 
-3. Do not include citations, source names, page numbers, or bracketed \
-references in your answer (no "[Source 1]", no "(see page 12)"). Some \
-Context passages begin with their own bracketed tags — "[Statute: ...]", \
+3. Every Context passage is preceded by its own "[Chunk_ID: ...]" marker. \
+End every factual or legal claim in your answer with that passage's exact \
+Chunk_ID, copied verbatim in square brackets (e.g. "...excluded under \
+Section 3(e) [a1b2c3d4]."). Use ONLY Chunk_ID values that actually appear \
+in the Context below — never invent one, and never attach a tag to a claim \
+whose Chunk_ID you are not certain of. Do not otherwise include source \
+names, page numbers, or any other bracketed reference (no "[Source 1]", no \
+"(see page 12)") — the Chunk_ID tag is the only bracketed thing you write. \
+Context passages also carry other bracketed tags — "[Statute: ...]", \
 "[Chapter: ...]", "[Section: ...]", "[Classification: ...]" — which exist \
-only to help you identify which passage you're reading; never copy these \
-tags into your answer either. The system attaches real citations \
-separately after your answer — your job is only the answer text itself.
+only to help you identify which passage you're reading; never copy those \
+into your answer. The system independently attaches the real, verified \
+Sources list after your answer from the actual retrieved chunks, regardless \
+of what you tag — your inline tags are a best-effort aid for the reader, \
+not the authoritative citation record, and any tag that doesn't match a \
+real retrieved chunk is detected and flagged by the system, not trusted.
 
 4. You do not reliably know the page number, section heading, or source \
 document for anything in the context — the "Context" text is raw document \
@@ -90,32 +123,104 @@ not write your own version of it, and do not otherwise pad the answer with \
 disclaimers beyond what rule 2 (or rule 4, when it applies) requires.
 """
 
+GENERATION_MAX_CHUNKS = 4
+GENERATION_MAX_CONTEXT_TOKENS = 1200
+
+# Broad patent-intent questions with no formulation type specified — steer
+# generation toward a clarifying question instead of dumping the corpus.
+_BROAD_QUERY_PATTERN = re.compile(
+    r"\b(?:want|wants|need|needs|how)\s+to\s+patent\b|"
+    r"\bpatent\s+(?:my|a|an|this|our)\s+(?:medicine|formula|formulation|drug|product|herb|herbal)\b|"
+    r"\bpatent(?:ing)?\s+(?:a\s+)?(?:medicine|formula|formulation)\b",
+    re.I,
+)
+
+
+def is_broad_query(query: str) -> bool:
+    """True when the question is a generic patent intent without statute-level specificity."""
+    if _BROAD_QUERY_PATTERN.search(query):
+        return True
+    # Very short patent questions with no section/act reference are broad too.
+    lowered = query.lower()
+    if "patent" in lowered and len(query.split()) <= 8:
+        if not re.search(r"\b(section|act|rule|sec\.?)\b", lowered):
+            return True
+    return False
+
+
+def _estimate_tokens(text: str) -> int:
+    # ~4 characters per token for English legal prose — good enough for a hard cap.
+    return max(1, len(text) // 4)
+
+
+def select_chunks_for_generation(chunks: list[dict]) -> list[dict]:
+    """Top reranked chunks, capped at 4 passages and ~1200 tokens total."""
+    if not chunks:
+        return []
+    selected: list[dict] = []
+    total_tokens = 0
+    for chunk in chunks[:GENERATION_MAX_CHUNKS]:
+        text = chunk.get("text", "")
+        chunk_tokens = _estimate_tokens(text)
+        if selected and total_tokens + chunk_tokens > GENERATION_MAX_CONTEXT_TOKENS:
+            break
+        selected.append(chunk)
+        total_tokens += chunk_tokens
+    return selected
+
+
+def broad_query_framing() -> str:
+    return (
+        "This question is broad and does not specify the Ayurvedic formulation type. "
+        "Do NOT attempt to summarize the entire patent corpus. Instead, ask exactly "
+        "one clarifying question about whether this is a Classical Ayurvedic "
+        "formulation (from recognized texts), a Patent & Proprietary (P&P) medicine, "
+        "a phytopharmaceutical, an Ayurveda-Aahar product, or another category — "
+        "then briefly note what regulatory path typically applies once clarified.\n\n"
+    )
+
 
 def build_user_prompt(
     query: str,
     chunks: list[dict],
     formulation_category: str | None = None,
     statutory_tags: list[str] | None = None,
+    formulation_notes: list[str] | None = None,
 ) -> str:
     """Assemble the context block + question the model actually sees.
 
     formulation_category/statutory_tags (see graph/formulation.py) are
     advisory framing, not a hard constraint — they tell the model which
     regulatory lens the question likely falls under, so an answer about a
-    proprietary Ayurvedic medicine doesn't accidentally read as though it
-    applies to classical formulations or vice versa. They do not override
-    rule 1 (answer only from the Context below): a heuristic category
-    label is not itself something to cite or treat as ground truth.
+    patent_and_proprietary Ayurvedic medicine doesn't accidentally read as
+    though it applies to classical formulations or vice versa. They do not
+    override rule 1 (answer only from the Context below): a heuristic
+    category label is not itself something to cite or treat as ground
+    truth. formulation_notes (also from graph/formulation.py, e.g.
+    CUSTOM_COMBINATION_NOTE) are likewise deterministic, code-authored
+    framing text, injected the same advisory way.
+
+    Each chunk is prefixed with its own "[Chunk_ID: ...]" marker so the
+    model has something real to copy into the inline tags rule 3 (see
+    SYSTEM_PROMPT) requires — chunk_id itself is never part of the stored/
+    indexed chunk text (see ingestion/chunker.py's own header lines), so it
+    has to be injected here at prompt-build time instead.
     """
+    chunks = select_chunks_for_generation(chunks)
+
     if not chunks:
         context = "(no context was retrieved for this query)"
     else:
-        context = "\n\n---\n\n".join(chunk["text"] for chunk in chunks)
+        context = "\n\n---\n\n".join(
+            f"[Chunk_ID: {chunk['chunk_id']}]\n{chunk['text']}" for chunk in chunks
+        )
 
     framing = ""
+    if is_broad_query(query):
+        framing += broad_query_framing()
     if formulation_category:
         tags = ", ".join(statutory_tags or [])
-        framing = (
+        framing += (
             f"Likely regulatory category (heuristic, not confirmed by the user): "
             f"{formulation_category}. Statutory areas typically relevant to this "
             f"category: {tags}. Use this only to frame which regulatory angle the "
@@ -123,5 +228,13 @@ def build_user_prompt(
             f"user's specific product, and never let it substitute for what the "
             f"Context below actually says.\n\n"
         )
+        if formulation_notes:
+            framing += (
+                "Additional regulatory framing notes (deterministic, not "
+                "LLM-written — treat as background context, not text to copy "
+                "verbatim unless the Context below independently supports it):\n"
+                + "\n".join(f"- {note}" for note in formulation_notes)
+                + "\n\n"
+            )
 
     return f"{framing}Context:\n{context}\n\nQuestion: {query}"

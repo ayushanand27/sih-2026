@@ -48,10 +48,10 @@ def test_new_drug_phrasing_classifies_as_new_or_non_classical_drug():
 def test_generic_clinical_trial_mention_does_not_alone_trigger_new_drug_category():
     """Deliberately narrow pattern (see graph/formulation.py's comment): the
     bare phrase "clinical trial" already feeds the generic Clinical_Validation
-    tag for other categories (e.g. proprietary, phytopharmaceutical) and must
-    not by itself reclassify those questions as new_or_non_classical_drug."""
+    tag for other categories (e.g. patent_and_proprietary, phytopharmaceutical)
+    and must not by itself reclassify those questions as new_or_non_classical_drug."""
     result = triage_formulation("What clinical validation does a P&P proprietary medicine need?")
-    assert result["formulation_category"] == "proprietary"
+    assert result["formulation_category"] == "patent_and_proprietary"
 
 
 def test_new_drug_plus_proprietary_keywords_asks_for_clarification():
@@ -60,6 +60,29 @@ def test_new_drug_plus_proprietary_keywords_asks_for_clarification():
     )
     assert result["needs_clarification"] is True
     assert set(result["clarifying_questions"][0].split()) & {"proprietary", "drug"}
+
+
+def test_custom_blend_of_classical_herbs_triages_to_patent_and_proprietary():
+    """Real bug found in live testing: a custom combination of individually-
+    classical herbs (turmeric + ashwagandha + tulsi + mulethi) was falling
+    through to the "classical" default. It is not classical — Section 3(h)
+    of the D&C Act, 1940 defines "patent or proprietary medicine" as exactly
+    this: a formulation using First-Schedule ingredients that does not
+    itself appear as one of the authoritative books' own formulae. Verified
+    directly against the real indexed Drugs_and_Cosmetics_Act_and_Rules.pdf
+    and Patents_Act_1970.pdf text (see graph/formulation.py's
+    CUSTOM_COMBINATION_NOTE and _CUSTOM_COMBINATION_PATTERN comments)."""
+    from graph.formulation import CUSTOM_COMBINATION_NOTE
+
+    result = triage_formulation(
+        "I have a medicine made from turmeric for curing wounds, made with "
+        "ashwagandha, tulsi, mulethi etc. Which category would it lie in?"
+    )
+    assert result["formulation_category"] == "patent_and_proprietary"
+    assert result["formulation_notes"] == [CUSTOM_COMBINATION_NOTE]
+    tags = CATEGORY_STATUTORY_TAGS["patent_and_proprietary"]
+    assert "Patents_Act_Sec3p" in tags
+    assert "Patents_Act_Sec3e" in tags
 
 
 def test_disclaimer_is_appended_and_idempotent():

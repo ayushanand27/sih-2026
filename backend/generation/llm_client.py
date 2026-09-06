@@ -21,8 +21,9 @@ Multi-key rotation: GROQ_API_KEY, plus GROQ_API_KEY_2, GROQ_API_KEY_3, ...
 as many as are set — a real, reproduced failure mode this backs up
 against, not a hypothetical: a single free-tier key's 200k-token daily
 quota ran out mid-run during scripts/evaluate_pipeline.py's own benchmark
-runs. On a 429 (groq.RateLimitError) specifically, the next configured key
-is tried before giving up; any other failure (auth, network, a genuine
+runs. On a 429 (groq.RateLimitError), APITimeoutError, or asyncio.TimeoutError
+the next configured key is tried immediately after at most 2 exponential-
+backoff retries on the current key — any other failure (auth, a genuine
 model error) still raises immediately, since rotating keys wouldn't fix
 those anyway. See _advance_key_index()'s docstring for why the rotation
 state is process-lifetime, not per-request.
@@ -39,11 +40,11 @@ import logging
 import os
 import sys
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import ollama
 from dotenv import load_dotenv
-from groq import AsyncGroq, RateLimitError
+from groq import APITimeoutError, AsyncGroq, RateLimitError
 
 from generation.prompts import SYSTEM_PROMPT, build_user_prompt
 
@@ -64,6 +65,15 @@ OLLAMA_TIMEOUT = float(os.getenv("OLLAMA_TIMEOUT", "45"))
 # machine this was built on. Set OLLAMA_NUM_GPU=-1 in .env to let Ollama pick
 # its own default (e.g. once a driver fix is confirmed) instead of CPU-only.
 OLLAMA_NUM_GPU = int(os.getenv("OLLAMA_NUM_GPU", "0"))
+
+# Per-call Groq budget — fail fast and rotate keys instead of hanging the
+# whole /query pipeline for 90s. Both the httpx client default and an outer
+# asyncio.wait_for enforce this ceiling.
+GROQ_REQUEST_TIMEOUT = float(os.getenv("GROQ_REQUEST_TIMEOUT", "15.0"))
+GROQ_MAX_RETRIES_PER_KEY = 2
+GROQ_BACKOFF_BASE = 0.5
+GROQ_KEY_DEGRADED_SECONDS = float(os.getenv("GROQ_KEY_DEGRADED_SECONDS", "60"))
+
 
 def _load_groq_api_keys() -> list[str]:
     """GROQ_API_KEY, plus GROQ_API_KEY_2, GROQ_API_KEY_3, ... for as long as
@@ -98,6 +108,7 @@ STREAM_CHUNK_TIMEOUT = float(os.getenv("STREAM_CHUNK_TIMEOUT", "20"))
 _ollama_client: ollama.AsyncClient | None = None
 _groq_clients: dict[int, AsyncGroq] = {}
 _current_key_index = 0
+_degraded_until: dict[int, float] = {}
 
 
 def _get_ollama_client() -> ollama.AsyncClient:
@@ -119,7 +130,10 @@ def _get_groq_client(index: int) -> AsyncGroq:
     """One cached AsyncGroq client per configured key — see
     GROQ_API_KEYS/_load_groq_api_keys() above."""
     if index not in _groq_clients:
-        _groq_clients[index] = AsyncGroq(api_key=GROQ_API_KEYS[index])
+        _groq_clients[index] = AsyncGroq(
+            api_key=GROQ_API_KEYS[index],
+            timeout=GROQ_REQUEST_TIMEOUT,
+        )
     return _groq_clients[index]
 
 
@@ -138,37 +152,98 @@ def _advance_key_index(exhausted_index: int) -> bool:
     return _current_key_index < len(GROQ_API_KEYS)
 
 
-async def _groq_complete(messages: list[dict]) -> str:
-    """Non-streaming Groq call with automatic key rotation across
-    GROQ_API_KEYS: a real, reproduced failure mode — a single free-tier
-    key's 200k-token daily quota ran out mid-benchmark-run during
-    development (scripts/evaluate_pipeline.py), not a hypothetical this is
-    guarding against speculatively. Retries the next configured key only on
-    RateLimitError specifically (a 429) — any other failure (auth, network,
-    a genuine model error) still raises immediately rather than burning
-    through every key on an error rotation wouldn't fix."""
+def _mark_key_degraded(index: int) -> None:
+    _degraded_until[index] = time.monotonic() + GROQ_KEY_DEGRADED_SECONDS
+    log.warning(
+        "Groq key #%d temporarily degraded for %.0fs — will skip on subsequent calls",
+        index + 1,
+        GROQ_KEY_DEGRADED_SECONDS,
+    )
+
+
+def _is_key_degraded(index: int) -> bool:
+    until = _degraded_until.get(index)
+    if until is None:
+        return False
+    if time.monotonic() >= until:
+        del _degraded_until[index]
+        return False
+    return True
+
+
+def _is_rotatable_groq_error(exc: BaseException) -> bool:
+    return isinstance(exc, (RateLimitError, APITimeoutError, asyncio.TimeoutError))
+
+
+async def _execute_groq_with_rotation(
+    call_factory: Callable[[AsyncGroq], Awaitable[object]],
+) -> object:
+    """Run one Groq call with per-key exponential backoff and key rotation.
+
+    Each key gets at most GROQ_MAX_RETRIES_PER_KEY retries (3 attempts total).
+    Rate limits, httpx timeouts, and asyncio.TimeoutError rotate immediately
+    after those retries are exhausted.
+    """
     _require_groq_keys()
     last_exc: Exception | None = None
-    index = _current_key_index
-    while index < len(GROQ_API_KEYS):
-        try:
-            client = _get_groq_client(index)
-            response = await client.chat.completions.create(
-                model=GROQ_MODEL, messages=messages, temperature=0.0
-            )
-            return response.choices[0].message.content.strip()
-        except RateLimitError as exc:
-            log.warning(
-                "Groq key #%d rate-limited (%s) — trying the next configured key",
-                index + 1, exc,
-            )
-            last_exc = exc
+    start_index = _current_key_index
+
+    for index in range(start_index, len(GROQ_API_KEYS)):
+        if _is_key_degraded(index):
+            log.info("Skipping degraded Groq key #%d", index + 1)
+            continue
+
+        exhausted_key = False
+        for attempt in range(GROQ_MAX_RETRIES_PER_KEY + 1):
+            try:
+                client = _get_groq_client(index)
+                return await asyncio.wait_for(
+                    call_factory(client),
+                    timeout=GROQ_REQUEST_TIMEOUT,
+                )
+            except Exception as exc:
+                if not _is_rotatable_groq_error(exc):
+                    raise
+                last_exc = exc
+                log.warning(
+                    "Groq key #%d attempt %d/%d failed (%s)",
+                    index + 1,
+                    attempt + 1,
+                    GROQ_MAX_RETRIES_PER_KEY + 1,
+                    exc,
+                )
+                _mark_key_degraded(index)
+                if attempt < GROQ_MAX_RETRIES_PER_KEY:
+                    await asyncio.sleep(GROQ_BACKOFF_BASE * (2**attempt))
+                    continue
+                exhausted_key = True
+                break
+
+        if exhausted_key:
             if not _advance_key_index(index):
                 break
-            index = _current_key_index
+
+    if last_exc is None:
+        raise RuntimeError(
+            f"All {len(GROQ_API_KEYS)} configured Groq key(s) are temporarily degraded — try again shortly."
+        )
     raise RuntimeError(
-        f"All {len(GROQ_API_KEYS)} configured Groq key(s) rate-limited: {last_exc}"
+        f"All {len(GROQ_API_KEYS)} configured Groq key(s) failed after fast rotation: {last_exc}"
     ) from last_exc
+
+
+async def _groq_complete(messages: list[dict]) -> str:
+    async def _call(client: AsyncGroq) -> str:
+        response = await client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=messages,
+            temperature=0.0,
+            timeout=GROQ_REQUEST_TIMEOUT,
+        )
+        return response.choices[0].message.content.strip()
+
+    result = await _execute_groq_with_rotation(_call)
+    return str(result)
 
 
 def _build_messages(user_prompt: str, system_prompt: str | None) -> list[dict]:
@@ -227,36 +302,72 @@ async def _stream_groq(messages: list[dict]) -> AsyncIterator[str]:
     restarting a partially-yielded stream on a different backend)."""
     _require_groq_keys()
     last_exc: Exception | None = None
-    index = _current_key_index
     stream = None
-    while index < len(GROQ_API_KEYS):
-        try:
-            client = _get_groq_client(index)
-            stream = await client.chat.completions.create(
-                model=GROQ_MODEL, messages=messages, temperature=0.0, stream=True
-            )
-            break
-        except RateLimitError as exc:
-            log.warning(
-                "Groq key #%d rate-limited (%s) — trying the next configured key",
-                index + 1, exc,
-            )
-            last_exc = exc
-            if not _advance_key_index(index):
+    start_index = _current_key_index
+
+    for index in range(start_index, len(GROQ_API_KEYS)):
+        if _is_key_degraded(index):
+            continue
+        for attempt in range(GROQ_MAX_RETRIES_PER_KEY + 1):
+            try:
+                client = _get_groq_client(index)
+
+                async def _open_stream(c: AsyncGroq = client):
+                    return await c.chat.completions.create(
+                        model=GROQ_MODEL,
+                        messages=messages,
+                        temperature=0.0,
+                        stream=True,
+                        timeout=GROQ_REQUEST_TIMEOUT,
+                    )
+
+                stream = await asyncio.wait_for(
+                    _open_stream(),
+                    timeout=GROQ_REQUEST_TIMEOUT,
+                )
                 break
-            index = _current_key_index
+            except Exception as exc:
+                if not _is_rotatable_groq_error(exc):
+                    raise
+                last_exc = exc
+                log.warning(
+                    "Groq stream open key #%d attempt %d/%d failed (%s)",
+                    index + 1,
+                    attempt + 1,
+                    GROQ_MAX_RETRIES_PER_KEY + 1,
+                    exc,
+                )
+                _mark_key_degraded(index)
+                if attempt < GROQ_MAX_RETRIES_PER_KEY:
+                    await asyncio.sleep(GROQ_BACKOFF_BASE * (2**attempt))
+                    continue
+                if not _advance_key_index(index):
+                    break
+                break
+        if stream is not None:
+            break
 
     if stream is None:
         raise RuntimeError(
-            f"All {len(GROQ_API_KEYS)} configured Groq key(s) rate-limited: {last_exc}"
+            f"All {len(GROQ_API_KEYS)} configured Groq key(s) failed opening stream: {last_exc}"
         ) from last_exc
 
     aiter = stream.__aiter__()
+    first_token = True
     while True:
+        chunk_timeout = GROQ_REQUEST_TIMEOUT if first_token else STREAM_CHUNK_TIMEOUT
         try:
-            chunk = await asyncio.wait_for(aiter.__anext__(), timeout=STREAM_CHUNK_TIMEOUT)
+            chunk = await asyncio.wait_for(aiter.__anext__(), timeout=chunk_timeout)
         except StopAsyncIteration:
             return
+        except asyncio.TimeoutError as exc:
+            if first_token:
+                _mark_key_degraded(_current_key_index)
+                raise RuntimeError(
+                    f"Groq produced no tokens within {GROQ_REQUEST_TIMEOUT}s — key rotated"
+                ) from exc
+            raise
+        first_token = False
         delta = chunk.choices[0].delta.content
         if delta:
             yield delta
@@ -303,12 +414,6 @@ async def astream_complete(
                 "yielding any tokens (%s) — falling back to Groq",
                 exc,
             )
-            # Only safe to fall back here because nothing has been yielded
-            # yet in this branch (Ollama failed on the *first* chunk fetch,
-            # e.g. connection refused) — see the docstring above. If Ollama
-            # had already streamed partial output, this except block is
-            # unreachable (the exception would propagate through the
-            # `async for` after tokens were already yielded to the caller).
 
     async for token in _stream_groq(messages):
         yield token
@@ -324,8 +429,9 @@ async def agenerate(
     chunks: list[dict],
     formulation_category: str | None = None,
     statutory_tags: list[str] | None = None,
+    formulation_notes: list[str] | None = None,
 ) -> str:
-    prompt = build_user_prompt(query, chunks, formulation_category, statutory_tags)
+    prompt = build_user_prompt(query, chunks, formulation_category, statutory_tags, formulation_notes)
     return await acomplete(prompt, system_prompt=SYSTEM_PROMPT)
 
 
@@ -334,8 +440,9 @@ async def astream_generate(
     chunks: list[dict],
     formulation_category: str | None = None,
     statutory_tags: list[str] | None = None,
+    formulation_notes: list[str] | None = None,
 ) -> AsyncIterator[str]:
-    prompt = build_user_prompt(query, chunks, formulation_category, statutory_tags)
+    prompt = build_user_prompt(query, chunks, formulation_category, statutory_tags, formulation_notes)
     async for token in astream_complete(prompt, system_prompt=SYSTEM_PROMPT):
         yield token
 

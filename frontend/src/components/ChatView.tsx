@@ -5,7 +5,8 @@ import { Mic, MicOff } from "lucide-react";
 import {
   ApiError,
   ClientTimeoutError,
-  query,
+  FAST_ROUTE_HINT,
+  isTimeoutError,
   queryStream,
   transcribeAudio,
 } from "@/lib/api";
@@ -89,6 +90,7 @@ export function ChatView({
               citations: data.citations,
               flags: data.flags,
               formulation_category: data.formulation_category,
+              formulation_notes: data.formulation_notes,
               confidence_score: data.confidence_score,
               related_provisions: data.related_provisions,
               needs_clarification: data.needs_clarification,
@@ -101,33 +103,34 @@ export function ChatView({
     );
   }
 
-  async function handleSend(overrideQuestion?: string) {
+  async function handleSend(
+    overrideQuestion?: string,
+    options?: { fastRoute?: boolean; skipUserBubble?: boolean }
+  ) {
     const question = (overrideQuestion ?? input).trim();
     if (!question || sending) return;
+    const fastRoute = options?.fastRoute ?? false;
 
     const history: ChatTurn[] = messages
       .filter((m) => !m.error)
       .map((m) => ({ role: m.role, content: m.content }));
 
-    setMessages((prev) => [
-      ...prev,
-      { id: nextId(), role: "user", content: question },
-    ]);
+    if (!options?.skipUserBubble) {
+      setMessages((prev) => [
+        ...prev,
+        { id: nextId(), role: "user", content: question },
+      ]);
+    }
     setInput("");
     setSending(true);
     scrollToBottom();
 
-    // The backend has no dedicated "category" field — formulation_category
-    // is always triaged server-side from the question text itself (see
-    // graph/formulation.py). Folding the intake screen's category pick in
-    // as a natural-language hint is what actually makes that UI control
-    // do something real against this backend, instead of being sent to a
-    // field that doesn't exist and silently ignored. The user's own typed
-    // question (not this augmented version) is what's shown in their chat
-    // bubble and sent back as `history` on later turns.
     const augmentedQuestion = category
       ? `${question} (regarding a ${category.toLowerCase()} formulation)`
       : question;
+    const streamQuestion = fastRoute
+      ? `${augmentedQuestion}${FAST_ROUTE_HINT}`
+      : augmentedQuestion;
 
     const assistantId = nextId();
     setMessages((prev) => [
@@ -137,7 +140,7 @@ export function ChatView({
 
     try {
       await queryStream(
-        { question: augmentedQuestion, history, jurisdiction },
+        { question: streamQuestion, history, jurisdiction },
         {
           onToken: (text) => {
             setMessages((prev) =>
@@ -150,55 +153,38 @@ export function ChatView({
           onDone: (data) => applyDoneData(assistantId, data),
         }
       );
-    } catch {
-      // Stream dropped (network hiccup, server restart mid-response) or
-      // never connected at all — fall back to the plain, non-streaming
-      // endpoint and replace whatever partial text arrived with the real,
-      // complete answer. Silent about *why* it fell back: the end result
-      // (a correct, complete answer) is what matters to the user, not the
-      // transport that produced it.
-      try {
-        const res = await query({
-          question: augmentedQuestion,
-          history,
-          jurisdiction,
-        });
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? {
-                  ...m,
-                  content: res.answer,
-                  citations: res.citations,
-                  flags: res.flags,
-                  formulation_category: res.formulation_category,
-                  confidence_score: res.confidence_score,
-                  related_provisions: res.related_provisions,
-                  needs_clarification: res.needs_clarification,
-                  clarifying_questions: res.clarifying_questions,
-                  actionable_forms: res.actionable_forms,
-                  pending: false,
-                }
-              : m
-          )
-        );
-      } catch (err) {
-        const message =
-          err instanceof ApiError || err instanceof ClientTimeoutError
-            ? err.message
-            : "Something went wrong talking to the backend.";
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantId
-              ? { ...m, content: "", error: message, pending: false }
-              : m
-          )
-        );
-      }
+    } catch (err) {
+      const retryable = isTimeoutError(err);
+      const message =
+        err instanceof ApiError || err instanceof ClientTimeoutError
+          ? err.message
+          : "Something went wrong talking to the backend.";
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantId
+            ? {
+                ...m,
+                content: "",
+                error: retryable
+                  ? "LLM provider took too long to respond."
+                  : message,
+                retryable,
+                retryQuestion: question,
+                pending: false,
+              }
+            : m
+        )
+      );
     } finally {
       setSending(false);
       scrollToBottom();
     }
+  }
+
+  function handleRetry(message: ConversationMessage, fastRoute: boolean) {
+    if (!message.retryQuestion || sending) return;
+    setMessages((prev) => prev.filter((m) => m.id !== message.id));
+    void handleSend(message.retryQuestion, { fastRoute, skipUserBubble: true });
   }
 
   function stopRecording() {
@@ -318,6 +304,7 @@ export function ChatView({
                   key={m.id}
                   message={m}
                   onViewCitation={setActiveCitation}
+                  onRetry={handleRetry}
                 />
               ))}
             {sending && !messages.some((m) => m.pending && m.content) && (
@@ -379,8 +366,8 @@ export function ChatView({
               </button>
             </form>
             <p className="mt-1.5 text-center text-[11px] text-ink/35">
-              Answers can take up to ~60s — grounded, cited responses are
-              slower than a guess.
+              Answers stream token-by-token — broad patent questions may ask a
+              clarifying question first.
             </p>
           </div>
         </div>

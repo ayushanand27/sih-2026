@@ -107,7 +107,7 @@ FORM_CATALOG: list[dict] = [
             "access for commercial", "biological resource commercial",
             "nba form 2", "sell ayurvedic product commercially",
         ],
-        "formulation_categories": ["proprietary"],
+        "formulation_categories": ["patent_and_proprietary"],
     },
     {
         "form_id": "NBA_FORM_3",
@@ -166,7 +166,7 @@ FORM_CATALOG: list[dict] = [
             "biological resource patent", "nba prior approval patent",
             "section 6 approval", "patent my ayurvedic formulation",
         ],
-        "formulation_categories": ["proprietary"],
+        "formulation_categories": ["patent_and_proprietary"],
         "statutory_tags": ["BDA_Sec6_NBA_Approval", "NBA_Section6"],
     },
     {
@@ -215,7 +215,7 @@ FORM_CATALOG: list[dict] = [
             "patent application", "grant of patent", "file a patent",
             "new patent application", "how to patent",
         ],
-        "formulation_categories": ["proprietary"],
+        "formulation_categories": ["patent_and_proprietary"],
     },
     {
         "form_id": "IPO_FORM_2",
@@ -234,7 +234,7 @@ FORM_CATALOG: list[dict] = [
             "specification", "provisional specification", "complete specification",
             "patent claims", "patent description",
         ],
-        "formulation_categories": ["proprietary"],
+        "formulation_categories": ["patent_and_proprietary"],
     },
     {
         "form_id": "IPO_FORM_5",
@@ -249,7 +249,7 @@ FORM_CATALOG: list[dict] = [
             "declaration of inventorship", "inventor declaration",
             "who is the inventor",
         ],
-        "formulation_categories": ["proprietary"],
+        "formulation_categories": ["patent_and_proprietary"],
     },
     {
         "form_id": "IPO_FORM_9",
@@ -264,7 +264,7 @@ FORM_CATALOG: list[dict] = [
             "early publication", "publish patent application early",
             "section 11a",
         ],
-        "formulation_categories": ["proprietary"],
+        "formulation_categories": ["patent_and_proprietary"],
     },
     {
         "form_id": "IPO_FORM_18A",
@@ -281,7 +281,7 @@ FORM_CATALOG: list[dict] = [
             "expedited examination", "fast track examination", "fast-track patent",
             "rule 24c", "startup patent examination",
         ],
-        "formulation_categories": ["proprietary"],
+        "formulation_categories": ["patent_and_proprietary"],
     },
 ]
 

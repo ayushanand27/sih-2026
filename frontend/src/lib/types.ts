@@ -6,7 +6,7 @@ export type Jurisdiction = "india" | "international";
 
 export const FORMULATION_CATEGORIES = [
   "Classical medicine",
-  "Proprietary medicine",
+  "Patent & Proprietary (P&P) medicine",
   "New / non-classical drug",
   "Phytopharmaceutical",
   "Ayurveda-Aahar / nutraceutical",
@@ -29,6 +29,10 @@ export interface Citation {
   source_file: string;
   page_number: number;
   section_heading: string;
+  /** Verbatim substring (~100-250 chars) of the actual indexed chunk text,
+   * sliced deterministically in code (generation/citation.py) — never
+   * LLM-generated, so it can't be hallucinated. */
+  exact_snippet: string;
 }
 
 export interface Flags {
@@ -67,6 +71,11 @@ export interface QueryResponse {
   citations: Citation[];
   flags: Flags;
   formulation_category: string;
+  /** Deterministic, code-authored legal-context strings for
+   * formulation_category (graph/formulation.py) — never LLM-generated.
+   * Always [] unless the question triggered a specific framing note (e.g.
+   * a custom blend of classical herbs triaging to patent_and_proprietary). */
+  formulation_notes: string[];
   confidence_score: number;
   audio_base64: string | null;
   related_provisions: RelatedProvision[];
@@ -106,6 +115,7 @@ export interface ConversationMessage {
   citations?: Citation[];
   flags?: Flags;
   formulation_category?: string;
+  formulation_notes?: string[];
   confidence_score?: number;
   related_provisions?: RelatedProvision[];
   needs_clarification?: boolean;
@@ -115,5 +125,9 @@ export interface ConversationMessage {
    * of returning a QueryResponse — rendered as an error bubble, never sent
    * back to the backend as history. */
   error?: string;
+  /** When true, the UI shows a Retry with Fast Route action. */
+  retryable?: boolean;
+  /** Original user question for retry (without assistant-side augmentation). */
+  retryQuestion?: string;
   pending?: boolean;
 }

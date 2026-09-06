@@ -18,9 +18,14 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from generation.citation import attach_citations, find_ungrounded_references, is_abstention
+from generation.citation import (
+    attach_citations,
+    find_invalid_inline_citation_tags,
+    find_ungrounded_references,
+    is_abstention,
+)
 from generation.llm_client import acomplete, agenerate
-from generation.prompts import append_disclaimer
+from generation.prompts import append_disclaimer, append_formulation_notes, is_broad_query, select_chunks_for_generation
 from graph.formulation import CATEGORY_STATUTORY_TAGS, triage_formulation
 from graph.state import DEFAULT_FLAGS, DEFAULT_JURISDICTION, GraphState
 from graph_kg.kg import related_provisions_for
@@ -108,6 +113,7 @@ def triage_formulation_node(state: GraphState) -> dict:
     triage = triage_formulation(query)
     return {
         "formulation_category": triage["formulation_category"],
+        "formulation_notes": triage["formulation_notes"],
         "statutory_tags": CATEGORY_STATUTORY_TAGS[triage["formulation_category"]],
         "needs_clarification": triage["needs_clarification"],
         "clarifying_questions": triage["clarifying_questions"],
@@ -202,11 +208,13 @@ async def retry_rewrite_query(state: GraphState) -> dict:
 
 async def generate_answer(state: GraphState) -> dict:
     query = state["rewritten_query"]
+    generation_chunks = select_chunks_for_generation(state["reranked"])
     answer = await agenerate(
         query,
-        state["reranked"],
+        generation_chunks,
         formulation_category=state.get("formulation_category"),
         statutory_tags=state.get("statutory_tags"),
+        formulation_notes=state.get("formulation_notes"),
     )
 
     flags = dict(state.get("flags") or {})
@@ -217,13 +225,13 @@ async def generate_answer(state: GraphState) -> dict:
     # doesn't depend on that being true forever.
     flags["abstained"] = is_abstention(answer)
 
-    # Post-generation grounding check (not run on an abstention: there's no
-    # "Section N"-shaped claim to verify in "I could not find this in my
-    # sources"). Logged, not surfaced in the API response or QueryResponse
-    # — this project's citations are only ever attached from real retrieved
-    # chunks, never parsed out of or edited into the model's own text (see
-    # generation/citation.py's docstring), so an ungrounded reference here
-    # isn't something to silently strip; it's a signal worth a human
+    # Post-generation grounding checks (not run on an abstention: there's no
+    # "Section N"-shaped or "[chunk_id]"-shaped claim to verify in "I could
+    # not find this in my sources"). Both are logged only, never surfaced in
+    # the API response or used to edit `answer` — this project's citations
+    # are only ever attached from real retrieved chunks, never parsed out of
+    # or edited into the model's own text (see generation/citation.py's
+    # docstring); an ungrounded reference here is a signal worth a human
     # looking at the prompt/retrieval for this query, surfaced the same way
     # weak_grounding's underlying warning already is.
     if not flags["abstained"]:
@@ -234,7 +242,18 @@ async def generate_answer(state: GraphState) -> dict:
                 "possible ungrounded statutory reference. Query: %r",
                 ungrounded, query,
             )
+        invalid_tags = find_invalid_inline_citation_tags(answer, state["reranked"])
+        if invalid_tags:
+            log.warning(
+                "Answer's inline [chunk_id] tags %s don't match any retrieved "
+                "chunk — model didn't follow the Chunk_ID rule. Query: %r",
+                invalid_tags, query,
+            )
 
+    # formulation_notes only when not abstaining — same "no extra framing on
+    # an abstention" rule actionable_forms/related_provisions already follow.
+    notes = None if flags["abstained"] else state.get("formulation_notes")
+    answer = append_formulation_notes(answer, notes)
     return {"answer": append_disclaimer(answer), "flags": flags}
 
 

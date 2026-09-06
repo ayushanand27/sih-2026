@@ -8,9 +8,11 @@ import { ActionableFormCard } from "./ActionableFormCard";
 export function ChatMessageBubble({
   message,
   onViewCitation,
+  onRetry,
 }: {
   message: ConversationMessage;
   onViewCitation: (citation: Citation) => void;
+  onRetry?: (message: ConversationMessage, fastRoute: boolean) => void;
 }) {
   const isUser = message.role === "user";
 
@@ -19,6 +21,15 @@ export function ChatMessageBubble({
       <div className="max-w-[85%] animate-fadeIn rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-panel">
         <p className="font-medium">The backend couldn&apos;t answer that.</p>
         <p className="mt-1 text-red-600/90">{message.error}</p>
+        {message.retryable && onRetry && (
+          <button
+            type="button"
+            onClick={() => onRetry(message, true)}
+            className="mt-3 rounded-xl border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+          >
+            Retry with Fast Route
+          </button>
+        )}
       </div>
     );
   }

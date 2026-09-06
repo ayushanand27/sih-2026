@@ -56,9 +56,9 @@ from api.asr import UnsupportedAudioFormat, transcribe_audio
 from api.translation import TARGET_LANGUAGE_CODES, translate_text
 from api.tts import BULBUL_SUPPORTED_LANGUAGES, synthesize_speech
 from compliance.form_navigator import match_forms
-from generation.citation import attach_citations, is_abstention
+from generation.citation import attach_citations, find_invalid_inline_citation_tags, is_abstention
 from generation.llm_client import astream_generate
-from generation.prompts import append_disclaimer
+from generation.prompts import append_disclaimer, append_formulation_notes, select_chunks_for_generation
 from graph.build_graph import build_graph
 from graph.nodes import expand_related_provisions_node, rewrite_query, run_retrieval_stage
 from graph.state import DEFAULT_FLAGS
@@ -179,7 +179,15 @@ class QueryRequest(BaseModel):
 
 
 class Citation(BaseModel):
-    chunk_id: str = Field(description="Internal id, not meant for display.")
+    chunk_id: str = Field(
+        description=(
+            "Internal id. Not primarily meant for display, but IS the exact "
+            "token the LLM was instructed to copy into inline '[chunk_id]' "
+            "tags within `answer` (see generation/prompts.py rule 3) — a "
+            "client wanting to link an inline tag back to its Citation can "
+            "match on this field."
+        )
+    )
     source_file: str = Field(description="The source PDF's filename — display this as the citation.")
     page_number: int = Field(description="1-indexed page number within source_file.")
     section_heading: str = Field(
@@ -187,6 +195,18 @@ class Citation(BaseModel):
             "Best-effort detected heading. Heuristic, not guaranteed accurate — "
             "falls back to the literal string 'Unlabelled section' if nothing "
             "heading-shaped was found nearby."
+        )
+    )
+    exact_snippet: str = Field(
+        description=(
+            "Verbatim substring (roughly 100-250 chars) of this chunk's actual "
+            "indexed text, sliced deterministically in code "
+            "(generation/citation.py::_extract_exact_snippet) — never "
+            "LLM-generated or paraphrased, same 'cannot be hallucinated because "
+            "it never passes through the model' guarantee as the rest of this "
+            "object. Context header lines (e.g. '[Section: ...]') are stripped "
+            "before slicing. Prefers a sentence boundary; falls back to a hard "
+            "cut with a trailing '…' if none exists in range."
         )
     )
 
@@ -247,12 +267,30 @@ class QueryResponse(BaseModel):
     formulation_category: str = Field(
         description=(
             "Deterministic keyword-based triage of the question into one of "
-            "graph.formulation.FORMULATION_CATEGORIES (classical, proprietary, "
-            "phytopharmaceutical, ayurveda_aahar, new_or_non_classical_drug, "
-            "cosmetic) — see graph/formulation.py. A coarse heuristic used to "
-            "frame the generation prompt, not a legal determination; defaults "
-            "to 'classical' when no category-specific keyword matched."
+            "graph.formulation.FORMULATION_CATEGORIES (classical, "
+            "patent_and_proprietary, phytopharmaceutical, ayurveda_aahar, "
+            "new_or_non_classical_drug, cosmetic) — see graph/formulation.py. "
+            "A coarse heuristic used to frame the generation prompt, not a "
+            "legal determination; defaults to 'classical' when no "
+            "category-specific keyword matched, EXCEPT a question describing "
+            "a custom combination/blend of named classical herbs (e.g. "
+            "'turmeric + ashwagandha + tulsi + mulethi'), which defaults to "
+            "'patent_and_proprietary' instead — Section 3(h) of the D&C Act, "
+            "1940 defines 'patent or proprietary medicine' as exactly a "
+            "First-Schedule-ingredient formulation not itself listed as one "
+            "of the authoritative books' own formulae."
         )
+    )
+    formulation_notes: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Deterministic, code-authored legal-context strings for the "
+            "matched formulation_category (graph/formulation.py) — never "
+            "LLM-generated, so this is the guaranteed-correct wording even if "
+            "the LLM's own prose paraphrases the same point. Currently "
+            "populated only for the custom-herb-blend patent_and_proprietary "
+            "case above. Always [] otherwise, and always [] on an abstention."
+        ),
     )
     confidence_score: float = Field(
         description=(
@@ -517,6 +555,7 @@ async def run_query(
         citations=result.get("citations") or [],
         flags=result.get("flags") or {},
         formulation_category=result.get("formulation_category") or "classical",
+        formulation_notes=result.get("formulation_notes") or [],
         confidence_score=result.get("confidence_score") or 0.0,
         needs_clarification=result.get("needs_clarification") or False,
         clarifying_questions=result.get("clarifying_questions") or [],
@@ -597,12 +636,17 @@ async def query_stream(req: QueryRequest):
                 timeout=RETRIEVAL_TIMEOUT,
             )
             reranked = retrieval_state["reranked"]
+            generation_chunks = select_chunks_for_generation(reranked)
             flags = retrieval_state["flags"]
             formulation_category = retrieval_state["formulation_category"]
             statutory_tags = retrieval_state["statutory_tags"]
 
+            formulation_notes = retrieval_state.get("formulation_notes")
+
             parts: list[str] = []
-            async for token in astream_generate(rewritten, reranked, formulation_category, statutory_tags):
+            async for token in astream_generate(
+                rewritten, generation_chunks, formulation_category, statutory_tags, formulation_notes
+            ):
                 parts.append(token)
                 yield _sse("token", {"text": token})
 
@@ -614,6 +658,17 @@ async def query_stream(req: QueryRequest):
             abstained = is_abstention(raw_answer)
             citations = [] if abstained else attach_citations(reranked)
             flags["abstained"] = abstained
+
+            # Diagnostic only, same as generate_answer()'s non-streaming
+            # path — logged, never used to edit the already-streamed tokens.
+            if not abstained:
+                invalid_tags = find_invalid_inline_citation_tags(raw_answer, reranked)
+                if invalid_tags:
+                    log.warning(
+                        "Stream answer's inline [chunk_id] tags %s don't match any "
+                        "retrieved chunk. Query: %r",
+                        invalid_tags, rewritten,
+                    )
             # No I/O, no LLM call — cheap enough to run on every stream too,
             # unlike translation/TTS (excluded from /query/stream for a real
             # technical reason: sentence-boundary detection against a
@@ -639,13 +694,21 @@ async def query_stream(req: QueryRequest):
                 )
             )
 
-            # The disclaimer streams as one more real token event — not
-            # silently spliced into the `done` payload only — so a client
-            # rendering tokens as they arrive sees it appear the same way
-            # the rest of the answer did, instead of a jump at the end.
-            disclaimer_suffix = append_disclaimer(raw_answer)[len(raw_answer):]
+            # formulation_notes + disclaimer both stream as more real token
+            # events — not silently spliced into the `done` payload only —
+            # so a client rendering tokens as they arrive sees them appear
+            # the same way the rest of the answer did, instead of a jump at
+            # the end. No notes on an abstention, same rule generate_answer()
+            # follows (graph/nodes.py) and actionable_forms/related_provisions
+            # already follow in this same handler.
+            with_notes = append_formulation_notes(raw_answer, None if abstained else formulation_notes)
+            notes_suffix = with_notes[len(raw_answer):]
+            if notes_suffix:
+                yield _sse("token", {"text": notes_suffix})
+
+            disclaimer_suffix = append_disclaimer(with_notes)[len(with_notes):]
             yield _sse("token", {"text": disclaimer_suffix})
-            answer = raw_answer + disclaimer_suffix
+            answer = with_notes + disclaimer_suffix
 
             yield _sse(
                 "done",
@@ -654,6 +717,7 @@ async def query_stream(req: QueryRequest):
                     "citations": citations,
                     "flags": flags,
                     "formulation_category": formulation_category,
+                    "formulation_notes": formulation_notes or [],
                     "confidence_score": retrieval_state.get("confidence_score") or 0.0,
                     "needs_clarification": retrieval_state["needs_clarification"],
                     "clarifying_questions": retrieval_state["clarifying_questions"],

@@ -16,6 +16,7 @@ class GraphState(TypedDict, total=False):
     history: list[dict]  # optional prior turns: [{"role": ..., "content": ...}]
     jurisdiction: str  # "india" or "international" — see ingestion.indexer.JURISDICTIONS
     formulation_category: str  # see graph.formulation.FORMULATION_CATEGORIES
+    formulation_notes: list[str]  # deterministic, code-authored legal-context strings — see graph.formulation.triage_formulation
     statutory_tags: list[str]  # see graph.formulation.CATEGORY_STATUTORY_TAGS
     needs_clarification: bool  # true when triage matched 2+ formulation categories
     clarifying_questions: list[str]  # informational — generation proceeds regardless, using the first-matched category
