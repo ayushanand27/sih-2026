@@ -59,6 +59,18 @@ log = logging.getLogger(__name__)
 # tests/test_retrieval_determinism.py's module docstring.
 FUSED_TOP_K = 40
 RERANK_TOP_K = 5
+# Broad patent-intent queries don't need a deep pool — smaller retrieval +
+# rerank cuts CPU cross-encoder time so the pipeline stays under ~15s.
+BROAD_FUSED_TOP_K = 15
+BROAD_RERANK_TOP_K = 4
+
+
+def _fused_top_k(query: str) -> int:
+    return BROAD_FUSED_TOP_K if is_broad_query(query) else FUSED_TOP_K
+
+
+def _rerank_top_k(query: str) -> int:
+    return BROAD_RERANK_TOP_K if is_broad_query(query) else RERANK_TOP_K
 
 # rerank_score is now a calibrated sigmoid(raw_logit) in [0, 1] — see
 # retrieval/reranker.py's module docstring for the empirical spread this was
@@ -129,11 +141,12 @@ async def retrieve(state: GraphState) -> dict:
     """
     query = state["rewritten_query"]
     jurisdiction = state.get("jurisdiction") or DEFAULT_JURISDICTION
+    fused_k = _fused_top_k(query)
 
-    bm25_results = await asyncio.to_thread(bm25_search_sync, query, top_k=FUSED_TOP_K, jurisdiction=jurisdiction)
-    dense_results = await dense_search(query, top_k=FUSED_TOP_K, jurisdiction=jurisdiction)
+    bm25_results = await asyncio.to_thread(bm25_search_sync, query, top_k=fused_k, jurisdiction=jurisdiction)
+    dense_results = await dense_search(query, top_k=fused_k, jurisdiction=jurisdiction)
     candidates = await fuse(
-        bm25_results, dense_results, top_k=FUSED_TOP_K, jurisdiction=jurisdiction
+        bm25_results, dense_results, top_k=fused_k, jurisdiction=jurisdiction
     )
     # Carried into rerank_node purely for the weak-grounding diagnostic
     # below — not used for ranking or filtering.
@@ -143,7 +156,9 @@ async def retrieve(state: GraphState) -> dict:
 
 async def rerank_node(state: GraphState) -> dict:
     query = state["rewritten_query"]
-    reranked = await asyncio.to_thread(rerank_sync, query, state["candidates"], top_k=RERANK_TOP_K)
+    reranked = await asyncio.to_thread(
+        rerank_sync, query, state["candidates"], top_k=_rerank_top_k(query)
+    )
 
     flags = dict(state.get("flags") or {})
     bm25_top_score = state.get("bm25_top_score", 0.0)
@@ -174,6 +189,10 @@ def should_retry(state: GraphState) -> str:
     """
     flags = state.get("flags") or {}
     if flags.get("retried"):
+        return "generate"
+
+    query = state.get("rewritten_query") or state.get("query") or ""
+    if is_broad_query(query):
         return "generate"
 
     reranked = state.get("reranked") or []

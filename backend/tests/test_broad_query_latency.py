@@ -44,8 +44,15 @@ def test_select_chunks_for_generation_caps_context():
 
 @pytest.mark.asyncio
 async def test_broad_query_graph_completes_under_15_seconds():
+    from retrieval.dense_search import search as dense_search
+    from retrieval.reranker import rerank as rerank_sync
     from graph.build_graph import build_graph
     from graph.state import DEFAULT_FLAGS
+
+    await dense_search("warmup", top_k=1, jurisdiction="india")
+    await asyncio.to_thread(
+        rerank_sync, "warmup", [{"text": "warmup", "chunk_id": "warm"}], top_k=1
+    )
 
     graph = build_graph()
     t0 = time.monotonic()

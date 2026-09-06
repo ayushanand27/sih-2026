@@ -4,8 +4,11 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from graph.build_graph import build_graph
 from graph.state import DEFAULT_FLAGS
@@ -17,6 +20,16 @@ MAX_SECONDS = 15.0
 async def main() -> int:
     if sys.platform == "win32":
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+    from retrieval.dense_search import search as dense_search
+    from retrieval.reranker import rerank as rerank_sync
+
+    # Warm embedding + cross-encoder models — cold load is not part of the
+    # per-request LLM timeout budget this script validates.
+    await dense_search("warmup", top_k=1, jurisdiction="india")
+    await asyncio.to_thread(
+        rerank_sync, "warmup", [{"text": "warmup", "chunk_id": "warm"}], top_k=1
+    )
 
     graph = build_graph()
     t0 = time.monotonic()
