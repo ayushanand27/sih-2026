@@ -28,11 +28,10 @@ from generation.llm_client import acomplete, agenerate
 from generation.prompts import (
     append_disclaimer,
     append_formulation_notes,
-    context_covers_ip_patent,
     ip_patent_context_abstention,
     is_broad_query,
-    is_ip_patentability_query,
     select_chunks_for_generation,
+    should_force_ip_patent_context_abstention,
 )
 from graph.formulation import CATEGORY_STATUTORY_TAGS, triage_formulation
 from graph.state import DEFAULT_FLAGS, DEFAULT_JURISDICTION, GraphState
@@ -43,6 +42,12 @@ from retrieval.fusion import fuse
 from retrieval.reranker import rerank as rerank_sync
 
 log = logging.getLogger(__name__)
+
+# Fixed Groq seed for the bounded retry's rephrase step only — temp is already
+# 0 in acomplete(), but Groq can still vary slightly without seed; see
+# tests/test_retry_rewrite_determinism.py and idea.md's retrieval-determinism
+# section for measured effect.
+RETRY_REWRITE_SEED = 26045
 
 # 40, not 20: raised after finding a real regression from
 # HierarchicalStatutoryChunker, not a hypothetical one. Clause-level chunks
@@ -233,7 +238,13 @@ async def retry_rewrite_query(state: GraphState) -> dict:
         "Rephrase it as a different, more specific search query that might "
         "match better. Output only the rephrased query, nothing else."
     )
-    rephrased = await acomplete(prompt)
+    rephrased = await acomplete(prompt, seed=RETRY_REWRITE_SEED)
+    log.info(
+        "retry_rewrite_query: original=%r rephrased=%r seed=%d",
+        original,
+        rephrased,
+        RETRY_REWRITE_SEED,
+    )
 
     flags = dict(state.get("flags") or {})
     flags["retried"] = True
@@ -245,9 +256,7 @@ async def generate_answer(state: GraphState) -> dict:
     generation_chunks = select_chunks_for_generation(state["reranked"])
     flags = dict(state.get("flags") or {})
 
-    if is_ip_patentability_query(query) and not context_covers_ip_patent(
-        generation_chunks
-    ):
+    if should_force_ip_patent_context_abstention(query, state["reranked"] or []):
         answer = ip_patent_context_abstention()
         flags["abstained"] = True
         return {"answer": append_disclaimer(answer), "flags": flags}

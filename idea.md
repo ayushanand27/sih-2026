@@ -71,11 +71,15 @@ is a trademark?" scored the actual Trade Marks Act far below unrelated
 documents, because the Act's own text says "trade marks" (two words) and
 BM25 is exact-token matching. `tests/test_retrieval_determinism.py` proves
 (bit-identical scores, 10 runs) that retrieve()/rerank_node() are now fully
-deterministic — the remaining source of flakiness is exclusively the
-bounded retry's own LLM-driven rephrase step, which fires deterministically
-now (same decision every run) but still isn't itself reproducible when it
-does fire. That gap is real and stayed out of scope for this pass — the
-test suite says so directly rather than claiming it's fixed.
+deterministic. The bounded retry's LLM rephrase step now passes a fixed
+Groq `seed` (`graph/nodes.py::RETRY_REWRITE_SEED`, SIH problem id 26045) on
+that call only (`generation/llm_client.py::acomplete(seed=...)`); measured
+on 2026-09-18 with `tests/test_retry_rewrite_determinism.py` (10 consecutive
+live Groq calls on the weak-grounding query "What is a trademark?"), every
+run returned the identical rephrase (`"What is the legal definition of a
+trademark under the Trade Marks Act, 1999?"`) — bit-identical across all 10.
+Query rewrite (`rewrite_query`) still has no seed knob and is out of scope
+here; only `retry_rewrite_query` is seeded.
 
 The cross-encoder reranker (`backend/retrieval/reranker.py`) outputs a
 calibrated `sigmoid(raw_logit)` confidence in [0,1] now, not a raw
@@ -230,9 +234,14 @@ keeps the two answer-sets visibly separate" requirement holds (`answer`/
 `citations` stay India-only), while the system can still *point* across
 jurisdictions where a real structural counterpart exists.
 
+Each `related_provisions` entry may include a single optional `second_hop`
+pointer (one more deterministic lookup from that tag — sorted neighbors,
+no LLM). That is still not multi-hop reasoning; it is a capped "see also"
+field, honestly labeled in `docs/API_CONTRACT.md`.
+
 **What this is not**: a full knowledge graph (no entity/relation
-extraction from free text, no reasoning over multi-hop paths beyond one
-lookup) or agentic orchestration (no LLM decides what to query next —
+extraction from free text, no reasoning over multi-hop paths beyond that
+one optional `second_hop` field) or agentic orchestration (no LLM decides what to query next —
 this is a deterministic lookup, same "no LLM call where determinism
 matters more" reasoning as `graph/formulation.py`'s triage). Treat this as
 the first real increment toward the PS's stage-2 ask, not the finished

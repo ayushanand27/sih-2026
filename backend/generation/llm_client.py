@@ -236,14 +236,17 @@ async def _execute_groq_with_rotation(
     ) from last_exc
 
 
-async def _groq_complete(messages: list[dict]) -> str:
+async def _groq_complete(messages: list[dict], seed: int | None = None) -> str:
     async def _call(client: AsyncGroq) -> str:
-        response = await client.chat.completions.create(
-            model=GROQ_MODEL,
-            messages=messages,
-            temperature=0.0,
-            timeout=GROQ_REQUEST_TIMEOUT,
-        )
+        kwargs: dict = {
+            "model": GROQ_MODEL,
+            "messages": messages,
+            "temperature": 0.0,
+            "timeout": GROQ_REQUEST_TIMEOUT,
+        }
+        if seed is not None:
+            kwargs["seed"] = seed
+        response = await client.chat.completions.create(**kwargs)
         return response.choices[0].message.content.strip()
 
     result = await _execute_groq_with_rotation(_call)
@@ -265,10 +268,18 @@ def _ollama_options() -> dict:
     return options
 
 
-async def acomplete(user_prompt: str, system_prompt: str | None = None) -> str:
+async def acomplete(
+    user_prompt: str,
+    system_prompt: str | None = None,
+    *,
+    seed: int | None = None,
+) -> str:
     """Non-streaming async completion — used for the short internal calls
     (query rewrite, retry rephrase) where there's nothing to stream to a
-    user. Groq direct by default; Ollama-then-Groq under OFFLINE_MODE."""
+    user. Groq direct by default; Ollama-then-Groq under OFFLINE_MODE.
+
+    Optional ``seed`` is forwarded to Groq only (Ollama has no seed knob) —
+    used by graph/nodes.py::retry_rewrite_query for reproducible rephrases."""
     messages = _build_messages(user_prompt, system_prompt)
 
     if OFFLINE_MODE:
@@ -289,7 +300,7 @@ async def acomplete(user_prompt: str, system_prompt: str | None = None) -> str:
             )
 
     try:
-        return await _groq_complete(messages)
+        return await _groq_complete(messages, seed=seed)
     except Exception as exc:
         raise RuntimeError(
             f"No LLM backend reachable (Groq failed: {exc}). Check GROQ_API_KEY "
