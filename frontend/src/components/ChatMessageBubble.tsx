@@ -83,6 +83,12 @@ export function ChatMessageBubble({
         )}
       </div>
 
+      {!isUser && !message.pending && message.translation_degraded && (
+        <p className="mt-2 rounded-lg border border-amber-200/80 bg-amber-50/90 px-2.5 py-1.5 text-xs text-amber-900">
+          Translation unavailable — showing English
+        </p>
+      )}
+
       {!isUser && !message.pending && (
         <p className="mt-2 flex items-center gap-1 text-[10px] font-medium text-neu-sub/70">
           <span aria-hidden>ⓘ</span> {DISCLAIMER_SHORT}

@@ -1,5 +1,5 @@
 """
-Sarvam AI translation bridge for IP-SAKTI.
+Translation bridge for IP-SAKTI (Bhashini primary, Sarvam fallback).
 
 Retrieval and generation only ever operate on English (dense/sparse
 retrieval and the grounded-generation prompt are tuned against English
@@ -7,27 +7,19 @@ statutory text — see generation/prompts.py). This module is what lets a
 non-English question in and a non-English answer back out around that:
 translate the incoming question to English before it reaches the graph,
 translate the graph's English answer back to the user's language before it
-leaves the process. See idea.md: Sarvam is the interim provider (working
-access now); the PS names Bhashini specifically, so this gets swapped if a
-Bhashini key arrives before the demo — this module is the only place that
-swap touches.
+leaves the process.
 
-Fails open, not closed: translation is a layer over an already-correct
-English pipeline, not something the demo can die on. Any failure (timeout,
-bad key, Sarvam outage, unexpected response shape) logs and returns the
-original text untouched rather than raising — worst case the user sees
-their answer in English instead of Hindi, not a 500.
+Primary: MeitY Bhashini / ULCA two-step pipeline (config → inference).
+Fallback: Sarvam AI if Bhashini fails, times out, or credentials are
+missing — same philosophy as generation/llm_client.py (try primary, log,
+fall back).
+
+The public entry point `translate_text` fails open for callers: Bhashini
+raises internally; Sarvam path logs and returns original text on failure.
 
 Chunks past SARVAM_MAX_CHARS: Sarvam's `mayura:v1` model hard-rejects input
-over exactly 1000 characters ("Input text must not exceed 1000 characters
-for mayura:v1") — confirmed empirically against the live API, not from
-docs. A real grounded answer (several sentences, sometimes a bulleted list
-of Act sections) routinely exceeds that; translating one straight through
-without chunking meant every realistically-sized answer 400'd and silently
-fell back to English every time — reproduced directly, not hypothetical.
-Chunks are translated concurrently and rejoined; if any chunk fails, the
-whole call falls back to the original, unchunked text rather than
-returning some sentences translated and others not.
+over exactly 1000 characters — see module history in git. Bhashini sends
+one request per call (long answers fall back to chunked Sarvam if needed).
 
 Usage:
     python -m api.translation "traditional knowledge patent exclusion" hi-IN en-IN
@@ -40,6 +32,7 @@ import logging
 import os
 import re
 import sys
+from typing import NamedTuple
 
 import httpx
 from dotenv import load_dotenv
@@ -53,16 +46,26 @@ log = logging.getLogger(__name__)
 SARVAM_API_KEY = os.getenv("SARVAM_API_KEY")
 SARVAM_BASE_URL = "https://api.sarvam.ai"
 TRANSLATE_TIMEOUT = 10.0
-# Sarvam's confirmed hard limit is 1000 exactly; 950 leaves margin without
-# meaningfully increasing the chunk count for typical answer lengths.
 SARVAM_MAX_CHARS = int(os.getenv("SARVAM_MAX_CHARS", "950"))
 
-# Sarvam's documented language codes (docs.sarvam.ai/api-reference/text/translate-text,
-# confirmed 2026-09). "auto" is source-only — you can't translate an answer
-# *into* "auto" — so it's excluded from TARGET_LANGUAGE_CODES, which is also
-# what api/main.py uses as QueryRequest.language's Pydantic Literal (that
-# field is both the question's source language and the answer's target
-# language, so it can never legitimately be "auto").
+BHASHINI_UDYAT_KEY = os.getenv("BHASHINI_UDYAT_KEY")
+BHASHINI_INFERENCE_KEY = os.getenv("BHASHINI_INFERENCE_KEY")
+BHASHINI_PIPELINE_CONFIG_URL = (
+    "https://meity-auth.ulcacontrib.org/ulca/apis/v0/model/getModelsPipeline"
+)
+# Public Bhashini translation pipeline id (not a secret); override if MeitY
+# assigns a dedicated pipeline to your project.
+BHASHINI_PIPELINE_ID = os.getenv(
+    "BHASHINI_PIPELINE_ID", "64392f96daac500b55c543cd"
+)
+BHASHINI_CONFIG_TIMEOUT = 10.0
+BHASHINI_INFERENCE_TIMEOUT = 15.0
+# Used when pipeline config omits pipelineInferenceAPIEndPoint (some Udyat
+# accounts return serviceId only); matches Bhashini's documented default.
+BHASHINI_DEFAULT_INFERENCE_URL = (
+    "https://dhruva-api.bhashini.gov.in/services/inference/pipeline"
+)
+
 TARGET_LANGUAGE_CODES: tuple[str, ...] = (
     "en-IN",
     "hi-IN",
@@ -90,14 +93,6 @@ TARGET_LANGUAGE_CODES: tuple[str, ...] = (
 )
 SOURCE_LANGUAGE_CODES: tuple[str, ...] = ("auto", *TARGET_LANGUAGE_CODES)
 
-# Ayurvedic technical terms that must survive translation unchanged, not be
-# transliterated into an approximate English gloss (e.g. Bhasma -> "ash",
-# which loses the specific pharmaceutical meaning the corpus's Drugs &
-# Cosmetics Act text actually uses). Maps every recognized surface form —
-# common Latin-script spelling variants and Devanagari — to one canonical
-# English term. Not exhaustive; the six terms named in the request plus
-# Arishta (near-synonym of Asava, common enough alongside it to be worth
-# including) and their most common alternate spellings.
 _RASA_SHASTRA = "Rasa Shastra"
 
 PROTECTED_AYURVEDIC_TERMS: dict[str, str] = {
@@ -127,19 +122,21 @@ PROTECTED_AYURVEDIC_TERMS: dict[str, str] = {
     "अरिष्ट": "Arishta",
 }
 
-# Purely numeric, not "XPROTECTEDTERMX{index}X" as originally written — found
-# to be a real bug, not a hypothetical, by capturing actual API output while
-# writing docs/API_CONTRACT.md: an alphabetic placeholder reads as an
-# unrecognized English word to Sarvam, which transliterated it into
-# Devanagari instead of passing it through ("XPROTECTEDTERMX0X" came back as
-# "एक्सप्रोटेक्टेडटेरएमएक्स0एक्स"), so the exact-string restore below never
-# matched and the mangled placeholder leaked into a real user-facing answer.
-# Confirmed by testing several formats against the live API: purely numeric
-# placeholders survive verbatim (Sarvam recognizes them as numbers, not
-# words). 9911...1199 wrapping is long and distinctive enough that it won't
-# coincidentally collide with a real number already in the source text
-# (section numbers, years, page numbers are all far shorter).
 _PROTECT_PLACEHOLDER = "9911{index:04d}1199"
+
+# Repo uses BCP-47 (hi-IN); Bhashini ULCA expects ISO 639-1 base codes.
+_BHASHINI_LANG_OVERRIDES: dict[str, str] = {
+    "od": "or",
+}
+
+
+class _BhashiniPipeline(NamedTuple):
+    callback_url: str
+    service_id: str
+
+
+_pipeline_cache: dict[tuple[str, str], _BhashiniPipeline] = {}
+_bhashini_step1_auth_approach: str | None = None
 
 
 def _protect_terms(text: str) -> tuple[str, dict[str, str]]:
@@ -175,6 +172,231 @@ def _restore_terms(text: str, mapping: dict[str, str]) -> str:
     return text
 
 
+def _bhashini_iso_lang(code: str) -> str:
+    base = code.split("-", 1)[0].lower()
+    return _BHASHINI_LANG_OVERRIDES.get(base, base)
+
+
+def _build_bhashini_step1_headers(approach: str = "B") -> dict[str, str]:
+    """ULCA pipeline-config auth. Approach A: udyat key as userID + ulcaApiKey.
+    Approach B: ulcaApiKey only (no userID header). Switch approaches here."""
+    udyat = BHASHINI_UDYAT_KEY or ""
+    headers: dict[str, str] = {
+        "Content-Type": "application/json",
+        "ulcaApiKey": udyat,
+    }
+    if approach == "A":
+        headers["userID"] = udyat
+    return headers
+
+
+def _bhashini_pipeline_config_body(source_iso: str, target_iso: str) -> dict:
+    return {
+        "pipelineTasks": [
+            {
+                "taskType": "translation",
+                "config": {
+                    "language": {
+                        "sourceLanguage": source_iso,
+                        "targetLanguage": target_iso,
+                    }
+                },
+            }
+        ],
+        "pipelineRequestConfig": {"pipelineId": BHASHINI_PIPELINE_ID},
+    }
+
+
+def _bhashini_inference_body(
+    text: str, source_iso: str, target_iso: str, service_id: str
+) -> dict:
+    return {
+        "pipelineTasks": [
+            {
+                "taskType": "translation",
+                "config": {
+                    "language": {
+                        "sourceLanguage": source_iso,
+                        "targetLanguage": target_iso,
+                    },
+                    "serviceId": service_id,
+                },
+            }
+        ],
+        "inputData": {
+            "input": [{"source": text}],
+            "audio": [{"audioContent": None}],
+        },
+    }
+
+
+def _is_bhashini_auth_failure(response: httpx.Response) -> bool:
+    if response.status_code in (401, 403):
+        return True
+    body = response.text.lower()
+    return any(
+        token in body
+        for token in (
+            "unauthorized",
+            "invalid api key",
+            "invalid key",
+            "ulcaapikey",
+            "userid",
+            "authentication",
+        )
+    )
+
+
+def _should_retry_bhashini_step1(
+    response: httpx.Response, has_more_approaches: bool
+) -> bool:
+    if not has_more_approaches:
+        return False
+    if _is_bhashini_auth_failure(response):
+        return True
+    return response.status_code == 400 and "ulcaapikey" in response.text.lower()
+
+
+def _parse_bhashini_pipeline_config(data: dict) -> _BhashiniPipeline:
+    try:
+        config_block = data["pipelineResponseConfig"][0]["config"][0]
+        service_id = config_block["serviceId"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise ValueError(
+            f"Bhashini pipeline config missing expected fields: {data!r}"
+        ) from exc
+    endpoint = data.get("pipelineInferenceAPIEndPoint") or {}
+    callback_url = endpoint.get("callbackUrl")
+    if not callback_url:
+        log.warning(
+            "Bhashini pipeline config omitted pipelineInferenceAPIEndPoint; "
+            "using default inference URL %s",
+            BHASHINI_DEFAULT_INFERENCE_URL,
+        )
+        callback_url = BHASHINI_DEFAULT_INFERENCE_URL
+    if not service_id:
+        raise ValueError(f"Bhashini pipeline config incomplete: {data!r}")
+    return _BhashiniPipeline(callback_url=callback_url, service_id=service_id)
+
+
+def _parse_bhashini_translation(data: dict) -> str:
+    pipeline_response = data.get("pipelineResponse")
+    if pipeline_response is None and data.get("taskType") == "translation":
+        pipeline_response = [data]
+    if not isinstance(pipeline_response, list):
+        raise ValueError(f"Bhashini inference had no pipelineResponse: {data!r}")
+    for task in pipeline_response:
+        if task.get("taskType") != "translation":
+            continue
+        outputs = task.get("output") or []
+        if outputs and outputs[0].get("target"):
+            return str(outputs[0]["target"]).strip()
+    raise ValueError(f"Bhashini inference had no translation target: {data!r}")
+
+
+async def _fetch_bhashini_pipeline_config(
+    client: httpx.AsyncClient, source_iso: str, target_iso: str
+) -> _BhashiniPipeline:
+    global _bhashini_step1_auth_approach
+
+    if not BHASHINI_UDYAT_KEY:
+        raise RuntimeError("BHASHINI_UDYAT_KEY is not set")
+
+    cache_key = (source_iso, target_iso)
+    if cache_key in _pipeline_cache:
+        return _pipeline_cache[cache_key]
+
+    body = _bhashini_pipeline_config_body(source_iso, target_iso)
+    approaches: list[str]
+    if _bhashini_step1_auth_approach:
+        approaches = [_bhashini_step1_auth_approach]
+    else:
+        approaches = ["B", "A"]
+
+    last_exc: Exception | None = None
+    for index, approach in enumerate(approaches):
+        response = await client.post(
+            BHASHINI_PIPELINE_CONFIG_URL,
+            headers=_build_bhashini_step1_headers(approach),
+            json=body,
+            timeout=BHASHINI_CONFIG_TIMEOUT,
+        )
+        if response.is_success:
+            parsed = _parse_bhashini_pipeline_config(response.json())
+            if _bhashini_step1_auth_approach is None:
+                _bhashini_step1_auth_approach = approach
+                log.info(
+                    "Bhashini pipeline config succeeded with auth approach %s",
+                    approach,
+                )
+            return parsed
+
+        has_more = index < len(approaches) - 1
+        if _should_retry_bhashini_step1(response, has_more):
+            last_exc = httpx.HTTPStatusError(
+                f"Bhashini step-1 failed (approach {approach}, "
+                f"{response.status_code})",
+                request=response.request,
+                response=response,
+            )
+            log.debug(
+                "Bhashini pipeline config approach %s rejected (%s), trying next",
+                approach,
+                response.status_code,
+            )
+            continue
+
+        response.raise_for_status()
+        raise ValueError(
+            f"Bhashini pipeline config failed ({response.status_code}): "
+            f"{response.text[:500]}"
+        )
+
+    raise RuntimeError(
+        "Bhashini pipeline config auth failed for all approaches"
+    ) from last_exc
+
+
+async def bhashini_translate(text: str, source_lang: str, target_lang: str) -> str:
+    """Translate via Bhashini ULCA pipeline. Raises on any failure."""
+    if not text.strip():
+        return text
+    if source_lang == target_lang:
+        return text
+    if not BHASHINI_UDYAT_KEY or not BHASHINI_INFERENCE_KEY:
+        raise RuntimeError("Bhashini credentials are not configured")
+
+    source_iso = _bhashini_iso_lang(source_lang)
+    target_iso = _bhashini_iso_lang(target_lang)
+    if source_iso == target_iso:
+        return text
+
+    async with httpx.AsyncClient() as client:
+        cache_key = (source_iso, target_iso)
+        if cache_key in _pipeline_cache:
+            pipeline = _pipeline_cache[cache_key]
+        else:
+            pipeline = await _fetch_bhashini_pipeline_config(
+                client, source_iso, target_iso
+            )
+        inference_response = await client.post(
+            pipeline.callback_url,
+            headers={
+                "Content-Type": "application/json",
+                "Authorization": BHASHINI_INFERENCE_KEY,
+            },
+            json=_bhashini_inference_body(
+                text, source_iso, target_iso, pipeline.service_id
+            ),
+            timeout=BHASHINI_INFERENCE_TIMEOUT,
+        )
+        inference_response.raise_for_status()
+        translated = _parse_bhashini_translation(inference_response.json())
+        if cache_key not in _pipeline_cache:
+            _pipeline_cache[cache_key] = pipeline
+        return translated
+
+
 _client: httpx.AsyncClient | None = None
 
 
@@ -188,8 +410,7 @@ def _get_client() -> httpx.AsyncClient:
 async def _translate_chunk(
     client: httpx.AsyncClient, text: str, source_lang: str, target_lang: str
 ) -> str:
-    """One Sarvam call, <= SARVAM_MAX_CHARS input. Raises on any failure —
-    translate_text() is what catches and applies the fail-open contract."""
+    """One Sarvam call, <= SARVAM_MAX_CHARS input. Raises on any failure."""
     response = await client.post(
         "/translate",
         headers={"api-subscription-key": SARVAM_API_KEY},
@@ -197,10 +418,6 @@ async def _translate_chunk(
             "input": text,
             "source_language_code": source_lang,
             "target_language_code": target_lang,
-            # speaker_gender is optional and only accepts "Male"/"Female" per
-            # Sarvam's spec — omitted rather than guessed, since we have no
-            # actual gender preference to supply and a bad enum value would
-            # 400 every request.
         },
     )
     response.raise_for_status()
@@ -210,38 +427,23 @@ async def _translate_chunk(
     return translated
 
 
-async def translate_text(text: str, source_lang: str, target_lang: str) -> str:
+async def sarvam_translate(
+    text: str, source_lang: str, target_lang: str
+) -> tuple[str, bool]:
     """
-    Translate `text` from source_lang to target_lang via Sarvam AI.
-
-    Returns the original text, unchanged, in two cases: source and target
-    are the same language, or any part of the API call fails for any
-    reason. The caller never needs a try/except — this function does not
-    raise. See module docstring for why long text is chunked, and why a
-    partial-chunk failure falls back to the *entire* original text rather
-    than returning some sentences translated and others not.
-
-    Deliberately does NOT special-case "source is English" as a shortcut —
-    only source_lang == target_lang skips the API call entirely. This
-    function runs in both directions (api/main.py's /query: request
-    language -> en-IN before retrieval, then en-IN -> request language
-    after generation), and a same-language check is the only rule that's
-    correct both ways. An earlier version also skipped whenever
-    source_lang.startswith("en"), which seemed like a harmless optimization
-    for the first direction but silently broke the second one outright: the
-    answer's source_lang is always "en-IN", so that rule would skip
-    translating it to the user's language on every single request. Caught
-    by testing an en-IN -> hi-IN call directly and seeing the Hindi text
-    come back as unmodified English.
+    Sarvam-only translation with Ayurvedic term protection and chunking.
+    Fail-open: logs and returns original text on failure (does not raise).
+    Second value is True when translation succeeded (or was skipped as a
+    no-op), False when the original text is returned due to failure.
     """
     if not text.strip():
-        return text
+        return text, True
     if source_lang == target_lang:
-        return text
+        return text, True
 
     if not SARVAM_API_KEY:
         log.warning("SARVAM_API_KEY is not set — returning text untranslated")
-        return text
+        return text, False
 
     protected_text, term_mapping = _protect_terms(text)
     chunks = split_text(protected_text, SARVAM_MAX_CHARS)
@@ -253,7 +455,7 @@ async def translate_text(text: str, source_lang: str, target_lang: str) -> str:
                 for chunk in chunks
             )
         )
-        return _restore_terms(" ".join(translated_chunks), term_mapping)
+        return _restore_terms(" ".join(translated_chunks), term_mapping), True
     except Exception as exc:
         log.warning(
             "Translation failed (%s -> %s, %d chunk(s)): %s — returning original text",
@@ -262,12 +464,46 @@ async def translate_text(text: str, source_lang: str, target_lang: str) -> str:
             len(chunks),
             exc,
         )
-        return text
+        return text, False
+
+
+async def translate_text(
+    text: str, source_lang: str, target_lang: str
+) -> tuple[str, bool]:
+    """
+    Primary Bhashini translation with Sarvam fallback. Public API for /query
+    and tests — does not raise; worst case returns original text via Sarvam
+    fail-open. Second value is `translation_degraded`: True only when
+    Bhashini was attempted, failed, and Sarvam fail-open also returned the
+    original text unchanged.
+    """
+    if not text.strip():
+        return text, False
+    if source_lang == target_lang:
+        return text, False
+
+    bhashini_attempted = bool(BHASHINI_UDYAT_KEY and BHASHINI_INFERENCE_KEY)
+    if bhashini_attempted:
+        try:
+            protected_text, term_mapping = _protect_terms(text)
+            translated = await bhashini_translate(
+                protected_text, source_lang, target_lang
+            )
+            return _restore_terms(translated, term_mapping), False
+        except Exception as exc:
+            log.warning(
+                "Bhashini translation failed (%s -> %s): %s — falling back to Sarvam",
+                source_lang,
+                target_lang,
+                exc,
+            )
+
+    translated, sarvam_ok = await sarvam_translate(text, source_lang, target_lang)
+    degraded = bhashini_attempted and not sarvam_ok
+    return translated, degraded
 
 
 if __name__ == "__main__":
-    # Windows consoles default to cp1252, which can't encode Devanagari and
-    # other non-Latin scripts this module routinely prints.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
     args = sys.argv[1:]
@@ -277,7 +513,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     text, source_lang, target_lang = args[0], args[1], args[2]
-    result = asyncio.run(translate_text(text, source_lang, target_lang))
+    result, _degraded = asyncio.run(translate_text(text, source_lang, target_lang))
     print(f"\n{source_lang} -> {target_lang}")
     print(f"in:  {text}")
     print(f"out: {result}")

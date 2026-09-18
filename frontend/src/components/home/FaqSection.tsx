@@ -21,7 +21,7 @@ const FAQS: { question: string; answer: string }[] = [
   {
     question: "Is my formulation or query data kept private?",
     answer:
-      "The retrieval pipeline supports local/air-gapped inference, so proprietary formulations and unfiled claims can stay off public model training sets. This prototype's login is a local UI shell only — see the note under the login card.",
+      "By default the backend logs only request metadata (length, language, jurisdiction) — not your question text or answers. See docs/PRIVACY_AND_AUDIT.md. Optional LOG_QUERY_CONTENT=true logs full questions for debugging only. Login stores a JWT on your device; chat does not require an account.",
   },
   {
     question: "Is this an official Government of India service?",

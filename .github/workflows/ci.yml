@@ -44,13 +44,18 @@ jobs:
           cache: "pip"
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
-      # The real suite needs a live Postgres+pgvector DB and real Groq calls
-      # (see backend/tests/ — deliberately not mocked). Running that here
-      # would need DATABASE_URL/GROQ_API_KEY as repo secrets and would spend
-      # real LLM quota on every push, so CI only verifies the test files
-      # themselves import and collect cleanly, catching syntax/import
-      # errors without touching any external service.
+      # Full suite needs Postgres+pgvector, BM25 index, and Groq (see test file headers).
+      # CI runs the offline-safe subset plus auth and API contract tests.
+      - run: python -m pytest tests/test_auth.py tests/test_api_contract.py tests/test_sources_endpoint.py tests/test_form_generator.py tests/test_compliance_flags.py tests/test_citation_matcher.py tests/test_forms.py tests/test_asr.py tests/test_formulation_and_response_contract.py tests/test_knowledge_graph.py tests/test_trap01_ip_patent_guard.py tests/test_translation_term_protection.py -q
       - run: python -m pytest --collect-only -q
+
+  docker-build:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose -f docker-compose.yml config
+      - run: docker compose -f docker-compose.yml build backend frontend
 
   lint:
     runs-on: ubuntu-latest

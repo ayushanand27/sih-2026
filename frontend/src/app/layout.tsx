@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { FontScaleSync } from "@/components/FontScaleSync";
+import { AuthProvider } from "@/hooks/useAuth";
 
 export const metadata: Metadata = {
   title: "IP-SAKTI Sahayak",
@@ -15,7 +16,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-neu-bg text-neu-text antialiased">
         <FontScaleSync />
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

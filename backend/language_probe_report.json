@@ -1,0 +1,79 @@
+[
+  {
+    "code": "as-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "পৰম্পৰাগত জ্ঞান",
+    "error": "sarvam: fail-open (unchanged)"
+  },
+  {
+    "code": "brx-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "दोरोङारि गियान",
+    "error": "sarvam: fail-open (unchanged)"
+  },
+  {
+    "code": "doi-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "पारंपरिक ज्ञान",
+    "error": "sarvam: fail-open (unchanged)"
+  },
+  {
+    "code": "kok-IN",
+    "bhashini": "N",
+    "sarvam": "N",
+    "output": "",
+    "error": "bhashini: Client error '400 ' for url 'https://meity-auth.ulcacontrib.org/ulca/apis/v0/model/getModelsPipeline'\nFor more"
+  },
+  {
+    "code": "ks-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "روایتی علم۔",
+    "error": "sarvam: fail-open (unchanged)"
+  },
+  {
+    "code": "mai-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "पारम्परिक ज्ञान",
+    "error": "sarvam: fail-open (unchanged)"
+  },
+  {
+    "code": "mni-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "ꯅꯥꯠꯀꯤ ꯑꯣꯏꯕ ꯍꯩꯁꯤꯡꯕꯁꯤꯡ",
+    "error": "sarvam: fail-open (unchanged)"
+  },
+  {
+    "code": "ne-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "परम्परागत ज्ञान",
+    "error": "sarvam: fail-open (unchanged)"
+  },
+  {
+    "code": "sa-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "पारम्परिका ज्ञानम्",
+    "error": "sarvam: fail-open (unchanged)"
+  },
+  {
+    "code": "sat-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "ᱥᱮᱨᱣᱟ ᱟᱱᱟᱜ ᱩᱯᱟᱹᱭ ᱾",
+    "error": "sarvam: fail-open (unchanged)"
+  },
+  {
+    "code": "sd-IN",
+    "bhashini": "Y",
+    "sarvam": "N",
+    "output": "روایتی علم",
+    "error": "sarvam: fail-open (unchanged)"
+  }
+]

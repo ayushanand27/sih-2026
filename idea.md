@@ -95,27 +95,27 @@ by `compiled_graph.ainvoke()`, not `.invoke()` via a thread pool — see
 `backend/api/main.py`. Every node that does I/O (LLM calls, pgvector
 queries) is a real `async def`, not a sync function offloaded to a thread.
 
-**Multilingual is wired into `/query` now** (`backend/api/translation.py`,
-Sarvam AI): question translates to English before retrieval, answer
-translates back to `QueryRequest.language` after generation. Retrieval and
-the LLM prompt never see anything but English — `language` only affects
-the two translation calls at the edges. Not wired into `/query/stream` yet
-(translating a live token stream is a separate, harder problem —
-sentence-boundary detection against a partial buffer). Sarvam's
-`mayura:v1` model hard-caps input at exactly 1000 characters — confirmed
-against the live API, not from docs — so both directions chunk text at
-sentence boundaries and translate the pieces concurrently
-(`api/text_chunking.py`, shared with TTS below). A same-language request
-(the `en-IN` default) skips translation entirely: zero added latency,
-identical behavior to before this existed. A fixed lexicon of Ayurvedic
-technical terms (Churna, Bhasma, Taila, Kwatha, Rasa Shastra, Asava,
-Arishta — Latin-script variants and Devanagari) is protected around every
-Sarvam call: swapped for an opaque placeholder before translation, restored
-to the canonical English spelling after, so Sarvam never sees the term at
-all and can't transliterate or gloss it into something else. Verified
-against the live API both directions, including a Devanagari-script input
-("भस्म" → placeholder → translated → restored to "Bhasma", not "ash" or any
-other approximation).
+**Multilingual is wired into `/query` now** (`backend/api/translation.py`):
+**Bhashini (MeitY ULCA) is primary**; **Sarvam AI is the automatic
+fallback** if Bhashini is missing, times out, or errors. Question
+translates to English before retrieval, answer translates back to
+`QueryRequest.language` after generation. Retrieval and the LLM prompt never
+see anything but English — `language` only affects the two translation calls
+at the edges. Not wired into `/query/stream` yet (translating a live token
+stream is a separate, harder problem — sentence-boundary detection against
+a partial buffer). Sarvam's `mayura:v1` model hard-caps input at exactly
+1000 characters — confirmed against the live API, not from docs — so long
+Sarvam-fallback paths chunk text at sentence boundaries and translate the
+pieces concurrently (`api/text_chunking.py`, shared with TTS below). A
+same-language request (the `en-IN` default) skips translation entirely: zero
+added latency, identical behavior to before this existed. A fixed lexicon
+of Ayurvedic technical terms (Churna, Bhasma, Taila, Kwatha, Rasa
+Shastra, Asava, Arishta — Latin-script variants and Devanagari) is
+protected around every translation call: swapped for an opaque placeholder
+before translation, restored to the canonical English spelling after.
+Verified against the live API both directions, including a Devanagari-script
+input ("भस्म" → placeholder → translated → restored to "Bhasma", not "ash"
+or any other approximation).
 
 **TTS is opt-in on `/query`** (`QueryRequest.synthesize_audio`,
 `backend/api/tts.py`, Sarvam AI's Bulbul model). Originally built on Groq
@@ -266,7 +266,7 @@ indexed as its own separate amendment-act document.
 | Reranker | cross-encoder, `ms-marco-MiniLM` class, local |
 | LLM primary | Groq API (`AsyncGroq`), direct — no local-first guessing/timeout on the live path |
 | LLM offline fallback | Ollama, local quantized model, gated behind `OFFLINE_MODE=true` — explicit operator flag for venue WiFi failure, not an auto-detected condition |
-| Translation | Sarvam AI, wired into `/query` (question in, answer out — see below). PS names Bhashini specifically — switch if a Bhashini key arrives before the demo. |
+| Translation | Bhashini (MeitY) primary, Sarvam automatic fallback, wired into `/query` (question in, answer out — see below). |
 | TTS | Sarvam AI (`bulbul:v3`), opt-in on `/query`, speaks 11 languages (not English-only) — see below. |
 | Frontend | React / Next.js |
 | Hosting | Render or Railway (backend, `Procfile` — `WEB_CONCURRENCY` workers, default 2: each worker loads its own copy of the embedding + cross-encoder models in memory, so raise it only if the host has RAM to match), Vercel (frontend) |

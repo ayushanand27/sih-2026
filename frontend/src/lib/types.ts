@@ -79,6 +79,7 @@ export interface QueryResponse {
   clarifying_questions: string[];
   actionable_forms: FormCard[];
   compliance_flags: ComplianceFlag[];
+  translation_degraded?: boolean;
 }
 
 export interface QueryRequest {
@@ -110,6 +111,8 @@ export interface ConversationMessage {
   clarifying_questions?: string[];
   actionable_forms?: FormCard[];
   compliance_flags?: ComplianceFlag[];
+  translation_degraded?: boolean;
+  audio_base64?: string | null;
   error?: string;
   retryable?: boolean;
   retryQuestion?: string;

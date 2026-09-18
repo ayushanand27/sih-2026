@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { THEME } from "@/lib/theme";
-import type { AuthUser } from "@/hooks/useAuth";
+import { useAuth } from "@/hooks/useAuth";
 
 type Mode = "login" | "signup";
 type SignupStep = "details" | "otp";
@@ -111,13 +111,14 @@ function CodePrefixedField({
 
 export function AuthModal({
   onClose,
-  onAuthenticated,
 }: {
   onClose: () => void;
-  onAuthenticated: (user: AuthUser) => void;
 }) {
+  const { loginWithPassword, registerAccount, requestPasswordReset } = useAuth();
   const [mode, setMode] = useState<Mode>("login");
   const [step, setStep] = useState<SignupStep>("details");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Login
   const [countryCode, setCountryCode] = useState<string>("+91");
@@ -151,26 +152,59 @@ export function AuthModal({
     setStep("details");
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  function loginIdentifier(): string {
+    const trimmed = identifier.trim();
+    if (trimmed.includes("@")) return trimmed;
+    return `${countryCode}${trimmed}`;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting) return;
+    setError(null);
     if (mode === "login") {
       if (!canSubmitLogin) return;
-      onAuthenticated({ name: identifier.split("@")[0], identifier: `${countryCode} ${identifier}`.trim() });
+      setSubmitting(true);
+      try {
+        await loginWithPassword(loginIdentifier(), password, rememberMe);
+        onClose();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not sign in.");
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
     if (step === "details") {
       if (!canContinueSignup) return;
-      setStep("otp");
+      setSubmitting(true);
+      try {
+        await registerAccount({
+          name: name.trim(),
+          email: email.trim(),
+          mobile: `${mobileCode}${mobile.trim()}`,
+          password: signupPassword,
+        });
+        onClose();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Could not create account.");
+      } finally {
+        setSubmitting(false);
+      }
       return;
     }
     if (!canVerifyOtp) return;
-    onAuthenticated({ name: name.trim(), identifier: email.trim() });
+    onClose();
   }
 
   const submitLabel =
     mode === "login" ? "Log in" : step === "details" ? "Continue" : "Verify & create account";
   const canSubmit =
-    mode === "login" ? canSubmitLogin : step === "details" ? canContinueSignup : canVerifyOtp;
+    mode === "login"
+      ? canSubmitLogin && !submitting
+      : step === "details"
+        ? canContinueSignup && !submitting
+        : canVerifyOtp;
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4 backdrop-blur-md">
@@ -265,8 +299,13 @@ export function AuthModal({
                   </label>
                   <button
                     type="button"
-                    title="Coming soon"
-                    onClick={(e) => e.preventDefault()}
+                    onClick={() => {
+                      void requestPasswordReset()
+                        .then((msg) => setError(msg))
+                        .catch((err) =>
+                          setError(err instanceof Error ? err.message : "Could not reach the backend.")
+                        );
+                    }}
                     className="font-medium text-neu-sub underline decoration-neu-bg underline-offset-2 hover:text-neu-text"
                   >
                     Forgot password?
@@ -365,11 +404,15 @@ export function AuthModal({
                 </div>
               </>
             )}
+            {error && (
+              <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-800" role="alert">
+                {error}
+              </p>
+            )}
           </form>
 
           <p className="mt-5 text-center text-[10px] leading-relaxed text-neu-sub">
-            Prototype UI — accounts aren&apos;t verified against a real backend
-            yet, this just remembers your details on this device.
+            Demo login: mobile 9876543210 / password demo123. Chat works without an account.
           </p>
         </div>
 

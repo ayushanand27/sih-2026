@@ -49,6 +49,7 @@ DOCUMENTED_RESPONSE_FIELDS = {
     "related_provisions",
     "actionable_forms",
     "compliance_flags",
+    "translation_degraded",
 }
 DOCUMENTED_FLAGS_FIELDS = {"abstained", "retried", "weak_grounding"}
 

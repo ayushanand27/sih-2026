@@ -1,0 +1,80 @@
+{
+  "query": "Can I patent Paracetamol tablet formulations under the classical Ayurveda drug provisions?",
+  "triage": {
+    "formulation_category": "classical",
+    "needs_clarification": false,
+    "clarifying_questions": [],
+    "formulation_notes": []
+  },
+  "reranked_ids": [
+    "Drugs_and_Cosmetics_Act_and_Rules::p13::c7",
+    "Drugs_and_Cosmetics_Act_and_Rules::p206::c503",
+    "Drugs_and_Cosmetics_Act_and_Rules::p206::c492",
+    "Drugs_and_Cosmetics_Act_and_Rules::p39::c144",
+    "Drugs_and_Cosmetics_Act_and_Rules::p301::c609"
+  ],
+  "agenerate": [
+    {
+      "run": 1,
+      "path": "agenerate",
+      "abstained": false,
+      "raw": "No. Under the Drugs & Cosmetics Act the term “patent or proprietary medicine” for Ayurvedic, Siddha or Unani systems is limited to formulations that contain only ingredients listed in the authoritative books specified in the First Schedule. A paracetamol tablet does not use any such Ayurvedic ingredients, so it cannot be treated as a “patent or proprietary medicine” under the classical Ayurveda provisions [Drugs_and_Cosmetics_Act_and_Rules::p13::c7]."
+    },
+    {
+      "run": 2,
+      "path": "agenerate",
+      "abstained": false,
+      "raw": "No. Under the Drugs & Cosmetics Act the term “patent or proprietary medicine” for Ayurvedic, Siddha or Unani systems is limited to formulations that contain **only** ingredients listed in the authoritative books specified in the First Schedule. A paracetamol tablet does not meet that requirement, so it cannot be treated as a “patent or proprietary medicine” under the classical Ayurveda provisions [Drugs_and_Cosmetics_Act_and_Rules::p13::c7]."
+    },
+    {
+      "run": 3,
+      "path": "agenerate",
+      "abstained": false,
+      "raw": "No. Under the Drugs & Cosmetics Act, “patent or proprietary medicine” for Ayurvedic, Siddha or Unani systems is limited to formulations that contain only ingredients described in the authoritative books listed in the First Schedule. Paracetamol is not an ingredient found in those classical texts, so a paracetamol tablet would not fall within the classical Ayurveda “patent or proprietary medicine” category. [Drugs_and_Cosmetics_Act_and_Rules::p13::c7]"
+    },
+    {
+      "run": 4,
+      "path": "agenerate",
+      "abstained": false,
+      "raw": "No. Under the Drugs & Cosmetics Act, “patent or proprietary medicine” for Ayurvedic, Siddha or Unani systems is limited to formulations that contain **only** ingredients listed in the authoritative classical books specified in the First Schedule. Paracetamol is not an ingredient described in those classical texts, so a paracetamol tablet formulation would not fall within the classical Ayurveda drug provisions. [Drugs_and_Cosmetics_Act_and_Rules::p13::c7]"
+    },
+    {
+      "run": 5,
+      "path": "agenerate",
+      "abstained": false,
+      "raw": "No. Under the Drugs & Cosmetics Act, a “patent or proprietary medicine” for Ayurvedic, Siddha or Unani systems is limited to formulations that contain **only** ingredients that appear in the formulae described in the authoritative classical books listed in the First Schedule. Paracetamol is not an ingredient mentioned in those texts, so a paracetamol tablet formulation would not fall within the classical‑Ayurveda “patent or proprietary medicine” category. [Drugs_and_Cosmetics_Act_and_Rules::p13::c7]"
+    }
+  ],
+  "generate_answer": [
+    {
+      "run": 1,
+      "path": "generate_answer",
+      "abstained": true,
+      "raw": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" under the Drugs & Cosmetics Act?\n\n*Disclaimer: This assistant provides source-grounded regulatory information for guidance and does not constitute formal legal advice.*"
+    },
+    {
+      "run": 2,
+      "path": "generate_answer",
+      "abstained": true,
+      "raw": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" under the Drugs & Cosmetics Act?\n\n*Disclaimer: This assistant provides source-grounded regulatory information for guidance and does not constitute formal legal advice.*"
+    },
+    {
+      "run": 3,
+      "path": "generate_answer",
+      "abstained": true,
+      "raw": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" under the Drugs & Cosmetics Act?\n\n*Disclaimer: This assistant provides source-grounded regulatory information for guidance and does not constitute formal legal advice.*"
+    },
+    {
+      "run": 4,
+      "path": "generate_answer",
+      "abstained": true,
+      "raw": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" under the Drugs & Cosmetics Act?\n\n*Disclaimer: This assistant provides source-grounded regulatory information for guidance and does not constitute formal legal advice.*"
+    },
+    {
+      "run": 5,
+      "path": "generate_answer",
+      "abstained": true,
+      "raw": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" under the Drugs & Cosmetics Act?\n\n*Disclaimer: This assistant provides source-grounded regulatory information for guidance and does not constitute formal legal advice.*"
+    }
+  ]
+}

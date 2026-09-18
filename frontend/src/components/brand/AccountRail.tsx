@@ -52,12 +52,10 @@ function IconLogout() {
  * "Login / Sign up" label by default and collapses to just the icon once
  * clicked (while the modal is up); signed in, it shows only the avatar
  * icon and expands on hover into a small account card (name, identifier,
- * settings/logout). UI shell only — there's no backend auth yet, so
- * "logging in" just remembers a name/identifier locally (see useAuth)
- * until a real backend exists. Hidden below `lg`, where the intake card
- * leaves no side margin to spare. */
+ * settings/logout). Uses the same JWT session as the marketing login card.
+ * Hidden below `lg`, where the intake card leaves no side margin to spare. */
 export function AccountRail({ onBack }: { onBack?: () => void } = {}) {
-  const { user, login, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
 
   const guestExpanded = !user && !modalOpen;
@@ -126,15 +124,7 @@ export function AccountRail({ onBack }: { onBack?: () => void } = {}) {
         )}
       </div>
 
-      {modalOpen && (
-        <AuthModal
-          onClose={() => setModalOpen(false)}
-          onAuthenticated={(next) => {
-            login(next);
-            setModalOpen(false);
-          }}
-        />
-      )}
+      {modalOpen && <AuthModal onClose={() => setModalOpen(false)} />}
     </>
   );
 }

@@ -37,7 +37,7 @@ async def test_protected_term_survives_translation_in_a_full_sentence():
         "Could you specify the specific regulatory provision, textbook, or "
         "schedule with the recommended adult dosage for Bhasma?"
     )
-    result = await translate_text(text, "en-IN", "hi-IN")
+    result, _degraded = await translate_text(text, "en-IN", "hi-IN")
 
     assert "Bhasma" in result, f"Protected term did not survive translation: {result!r}"
     mangled_markers = ["एक्स", "PROTECTEDTERM", "X0X"]
@@ -50,7 +50,7 @@ async def test_protected_term_survives_translation_in_a_full_sentence():
 
 @pytest.mark.asyncio
 async def test_multiple_protected_terms_in_one_sentence():
-    result = await translate_text(
+    result, _degraded = await translate_text(
         "What is the correct dosage for Bhasma and Churna preparations?",
         "en-IN",
         "hi-IN",
@@ -65,5 +65,5 @@ async def test_devanagari_input_resolves_to_canonical_english_term():
     Latin-script spelling) must still resolve to the canonical English term
     on the way back to English — not a generic gloss like "ash", and not
     left as untranslated Devanagari."""
-    result = await translate_text("भस्म की सही खुराक क्या है?", "hi-IN", "en-IN")
+    result, _degraded = await translate_text("भस्म की सही खुराक क्या है?", "hi-IN", "en-IN")
     assert "Bhasma" in result

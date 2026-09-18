@@ -54,6 +54,7 @@ from tabulate import tabulate
 load_dotenv(override=True)
 
 from api.main import run_query  # noqa: E402 -- must follow the sys.path insert above
+from scripts.citation_matcher import check_citations_matched  # noqa: E402
 
 # data/ lives under backend/, not at the repo root -- moved there by
 # c230ea9 ("Relocate data/ under backend/ and fix gitignore to match").
@@ -63,42 +64,6 @@ from api.main import run_query  # noqa: E402 -- must follow the sys.path insert 
 # hadn't actually run successfully since.
 BENCHMARK_PATH = BACKEND_ROOT / "data" / "eval_benchmark.json"
 REPORT_PATH = BACKEND_ROOT / "eval_report.json"
-
-
-def check_citations_matched(
-    response_citations: List[Dict[str, Any]],
-    answer_text: str,
-    expected_statutes: List[str],
-) -> bool:
-    """True if ANY expected statutory marker (case-insensitive) appears in
-    the citations' real fields (source_file, section_heading, chunk_id) or
-    in the answer text itself -- a citation's own heading doesn't always
-    literally spell out a statute number even when the underlying passage
-    is the right one. Vacuously True when expected_statutes is empty (the
-    hallucination-trap queries), since there's nothing to check there.
-
-    source_file is an underscored filename (e.g.
-    "Biological_Diversity_Act_2002.pdf" -- see ingestion/loader.py), while
-    a benchmark's expected_statutes are natural spaced phrases ("Biological
-    Diversity Act"). A plain substring check between the two never matches
-    even when the citation is exactly right -- caught by manually
-    inspecting a "FAIL" result whose actual citations and answer were both
-    correct. Underscores are normalized to spaces before matching so a
-    real, correct citation isn't scored as a miss over punctuation."""
-    if not expected_statutes:
-        return True
-
-    citation_corpus = (
-        " ".join(
-            f"{c.get('source_file', '')} {c.get('section_heading', '')} {c.get('chunk_id', '')}"
-            for c in response_citations
-        )
-        .lower()
-        .replace("_", " ")
-    )
-    citation_corpus += " " + (answer_text or "").lower()
-
-    return any(statute.lower() in citation_corpus for statute in expected_statutes)
 
 
 async def run_single_eval(test_case: Dict[str, Any]) -> Dict[str, Any]:

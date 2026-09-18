@@ -51,7 +51,7 @@ the deployed app uses the environment variable set in Vercel above.
   bare spinner that looks broken after 10 seconds.
 - **API client** (`src/lib/api.ts`) — talks to the IAM FastAPI backend:
   `/query/stream` for English chat, `/query` when a non-English language is
-  selected (Sarvam translation), plus `/sources` for cited PDFs.
+  selected (Bhashini translation, Sarvam fallback), plus `/sources` for cited PDFs.
 - **Backend extras in the UI** — related provisions, NBA/IPO form cards,
   compliance flags, and response-level confidence from the IAM pipeline.
 

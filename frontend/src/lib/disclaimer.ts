@@ -6,4 +6,4 @@
 export const DISCLAIMER_SHORT = "Information only — not legal advice.";
 
 export const DISCLAIMER_LONG =
-  "IP-SAKTI Sahayak explains how the law generally applies — it is not a substitute for advice from a qualified IP attorney or the relevant government office. Verify anything time-sensitive or high-stakes before acting on it.";
+  "IP-SAKTI Sahayak explains how the law generally applies — it is not a substitute for advice from a qualified IP attorney or the relevant government office. Verify anything time-sensitive or high-stakes before acting on it. Query metadata (length, language, jurisdiction) may be logged for audit; full question text is not logged unless the operator enables LOG_QUERY_CONTENT on the server.";

@@ -131,9 +131,9 @@ prompt.
 
 ```mermaid
 flowchart LR
-    Q["Question<br/>(hi-IN, ta-IN, ...)"] --> T1["Sarvam translate<br/>-> en-IN"]
+    Q["Question<br/>(hi-IN, ta-IN, ...)"] --> T1["Bhashini translate<br/>(Sarvam fallback)<br/>-> en-IN"]
     T1 --> PIPE["Retrieval + reranking + generation<br/>— always English, never sees `language`"]
-    PIPE --> T2["Sarvam translate<br/>en-IN -> `language`"]
+    PIPE --> T2["Bhashini translate<br/>(Sarvam fallback)<br/>en-IN -> `language`"]
     T2 --> ANS["Answer, in the user's language"]
     T2 -.->|"if synthesize_audio<br/>and language is Bulbul-supported"| TTS["Bulbul TTS<br/>spoken answer"]
 
@@ -147,7 +147,7 @@ flowchart LR
 latency, identical behavior to a language-unaware system. A fixed lexicon
 of Ayurvedic terms (Churna, Bhasma, Taila, Kwatha, Rasa Shastra, Asava,
 Arishta) is swapped for an opaque placeholder before every translate call
-and restored after, so Sarvam never mistranslates or transliterates a term
+and restored after, so neither Bhashini nor Sarvam mistranslates or transliterates a term
 this project's corpus depends on into an approximate gloss.
 
 ### Offline ingestion flow — how the corpus becomes queryable
@@ -321,7 +321,7 @@ confirm it opens the real PDF at the right page.
 | Reranker | cross-encoder, `ms-marco-MiniLM-L-6-v2`, run locally |
 | LLM primary | Groq API — direct, no local-first guessing on the live path |
 | LLM offline fallback | Ollama (local), gated behind `OFFLINE_MODE=true` — an explicit operator flag, not tried automatically per-request (see `idea.md` for why that changed) |
-| Translation | Sarvam AI — question in, answer out, wired into `/query` (not `/query/stream`) |
+| Translation | Bhashini (MeitY) primary, Sarvam automatic fallback — question in, answer out, wired into `/query` (not `/query/stream`) |
 | Frontend | Next.js/React, `frontend/` — a chat UI against `docs/API_CONTRACT.md` (see Current status) |
 
 ## Repo layout
@@ -426,7 +426,8 @@ psycopg's async mode under Windows' default event loop. `run.py` fixes
 this before anything else is imported. `uvicorn api.main:app --reload`
 still works for hot-reload dev on Linux/macOS, where this doesn't apply.
 
-Then `GET /health`, `POST /query`, `POST /query/stream`, `POST /ingest`,
+Then `GET /health`, `POST /auth/login`, `POST /auth/register`, `GET /auth/me`,
+`POST /query`, `POST /query/stream`, `POST /ingest`,
 `GET /sources/{filename}`, `POST /api/v1/voice/transcribe`,
 `POST /api/v1/voice/query`, `GET /api/v1/compliance/forms`. Full request/
 response shapes, real example responses, and timing expectations are in
@@ -443,6 +444,42 @@ npm run dev
 Then open `http://localhost:3000`. `NEXT_PUBLIC_API_BASE_URL` in
 `.env.local` is the only thing to change if the backend isn't on its
 default port/host.
+
+### Log in (demo)
+
+The marketing page and intake **Account** rail call the backend auth API
+(`POST /auth/login`, `POST /auth/register`). Start the backend first, then:
+
+| Field | Value |
+|---|---|
+| Mobile | `9876543210` (or `DEMO_LOGIN_PHONE`) |
+| Password | `demo123` (or `DEMO_LOGIN_PASSWORD`) |
+
+You can also sign up with a new email/mobile. **Continue to Chat** and
+**Skip to Chat** do not require login. Override secrets via `AUTH_SECRET`
+and the `DEMO_LOGIN_*` variables in `backend/env.example.txt` (copy to
+`.env` locally — never commit).
+
+### Run with Docker
+
+From this directory (`iam/sih-2026`):
+
+```bash
+docker compose up --build
+```
+
+- Frontend: http://localhost:3000  
+- Backend API: http://localhost:8000 (`GET /health`, `POST /auth/login`)  
+- Postgres+pgvector: localhost:5432 (`ipsakti` / `ipsakti`)
+
+Copy `backend/env.example.txt` to `backend/.env` and add `GROQ_API_KEY` (and
+any Bhashini/Sarvam keys) before running queries — auth works without them.
+After the stack is up, run ingestion once inside the backend container if
+the vector index is empty (see backend README).
+
+```bash
+docker compose exec backend python -m ingestion.indexer
+```
 
 ## Demo
 
@@ -470,8 +507,9 @@ question risks a weaker answer than the system is actually capable of.
   genuine-ambiguity clarification detection
 - LangGraph DAG wiring the above into one async pipeline, with a bounded
   single retry on weak retrieval
-- Multilingual — Sarvam AI, question translated to English before
-  retrieval, answer translated back after generation (`/query` only)
+- Multilingual — Bhashini (MeitY) with Sarvam fallback, question
+  translated to English before retrieval, answer translated back after
+  generation (`/query` only)
 - Text-to-speech — Sarvam's Bulbul model, opt-in via
   `QueryRequest.synthesize_audio`, speaks the *translated* answer in 11 of
   the languages translation supports (see
@@ -539,7 +577,8 @@ question risks a weaker answer than the system is actually capable of.
   home + intake, jurisdiction toggle (`india` / `international`), streaming
   chat, citation cards linking to the real source PDF (`GET /sources/{filename}`),
   confidence/weak-grounding, related-provisions and actionable-forms panels,
-  ABS/TKDL helper, human-facilitator mailto, multilingual Sarvam `language`,
+  ABS/TKDL helper, human-facilitator mailto, multilingual Bhashini/Sarvam
+  `language`, optional Bulbul TTS when voice mode is on,
   abstention banner
 
 **Not yet built:**

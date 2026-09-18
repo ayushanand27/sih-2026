@@ -1,0 +1,54 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ipsakti
+      POSTGRES_PASSWORD: ipsakti
+      POSTGRES_DB: ipsakti
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ipsakti -d ipsakti"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Repo-root PDF corpus (same path as local DATA_DIR=../data)
+      - ./data:/data:ro
+    environment:
+      # Overrides DATABASE_URL (and DATA_DIR) from backend/.env — compose Postgres hostname is `db`, not localhost.
+      DATABASE_URL: postgresql://ipsakti:ipsakti@db:5432/ipsakti
+      DATA_DIR: /data
+      BM25_INDEX_PATH: indexes/bm25.pkl
+      CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
+      AUTH_SECRET: change-me-for-demo-only
+      DEMO_LOGIN_PHONE: "9876543210"
+      DEMO_LOGIN_PASSWORD: demo123
+      # Add GROQ_API_KEY (and optional Bhashini/Sarvam keys) via a local .env file — never commit secrets.
+    env_file:
+      - path: ./backend/.env
+        required: false
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

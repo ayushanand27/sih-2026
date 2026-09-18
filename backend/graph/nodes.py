@@ -28,7 +28,10 @@ from generation.llm_client import acomplete, agenerate
 from generation.prompts import (
     append_disclaimer,
     append_formulation_notes,
+    context_covers_ip_patent,
+    ip_patent_context_abstention,
     is_broad_query,
+    is_ip_patentability_query,
     select_chunks_for_generation,
 )
 from graph.formulation import CATEGORY_STATUTORY_TAGS, triage_formulation
@@ -240,6 +243,15 @@ async def retry_rewrite_query(state: GraphState) -> dict:
 async def generate_answer(state: GraphState) -> dict:
     query = state["rewritten_query"]
     generation_chunks = select_chunks_for_generation(state["reranked"])
+    flags = dict(state.get("flags") or {})
+
+    if is_ip_patentability_query(query) and not context_covers_ip_patent(
+        generation_chunks
+    ):
+        answer = ip_patent_context_abstention()
+        flags["abstained"] = True
+        return {"answer": append_disclaimer(answer), "flags": flags}
+
     answer = await agenerate(
         query,
         generation_chunks,
@@ -247,8 +259,6 @@ async def generate_answer(state: GraphState) -> dict:
         statutory_tags=state.get("statutory_tags"),
         formulation_notes=state.get("formulation_notes"),
     )
-
-    flags = dict(state.get("flags") or {})
     # is_abstention() must run on the model's raw output, before the
     # disclaimer is appended — the disclaimer text doesn't start with
     # ABSTENTION_MARKER, so appending first would just be harmless, but

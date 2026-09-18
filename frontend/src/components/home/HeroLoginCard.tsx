@@ -106,13 +106,15 @@ export function HeroLoginCard({
   mode: Mode;
   onModeChange: (mode: Mode) => void;
 }) {
-  const { user, login, logout } = useAuth();
+  const { user, loginWithPassword, registerAccount, logout, requestPasswordReset } = useAuth();
   const [countryCode, setCountryCode] = useState<string>("+91");
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Signup keeps email and mobile as two separate, both-required fields
   // (rather than the single "email or mobile" identifier login uses).
@@ -129,14 +131,43 @@ export function HeroLoginCard({
         password.length >= 6 &&
         password === confirmPassword;
 
-  function handleSubmit(e: React.FormEvent) {
+  function loginIdentifier(): string {
+    const trimmed = identifier.trim();
+    if (trimmed.includes("@")) return trimmed;
+    return `${countryCode}${trimmed}`;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!canSubmit) return;
-    if (mode === "signup") {
-      login({ name: name.trim(), identifier: signupEmail.trim() });
-      return;
+    if (!canSubmit || submitting) return;
+    setError(null);
+    setSubmitting(true);
+    try {
+      if (mode === "signup") {
+        await registerAccount({
+          name: name.trim(),
+          email: signupEmail.trim(),
+          mobile: `${mobileCode}${mobile.trim()}`,
+          password,
+        });
+      } else {
+        await loginWithPassword(loginIdentifier(), password, rememberMe);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not sign in. Is the backend running?");
+    } finally {
+      setSubmitting(false);
     }
-    login({ name: identifier.split("@")[0], identifier: `${countryCode} ${identifier.trim()}` });
+  }
+
+  async function handleForgotPassword() {
+    setError(null);
+    try {
+      const message = await requestPasswordReset();
+      setError(message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not reach the backend.");
+    }
   }
 
   if (user) {
@@ -294,8 +325,7 @@ export function HeroLoginCard({
               </label>
               <button
                 type="button"
-                title="Coming soon"
-                onClick={(e) => e.preventDefault()}
+                onClick={() => void handleForgotPassword()}
                 className="font-medium text-ink/60 underline decoration-clay-200 underline-offset-2 hover:text-ink"
               >
                 Forgot password?
@@ -303,17 +333,24 @@ export function HeroLoginCard({
             </div>
           )}
 
+          {error && (
+            <p className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">
+              {error}
+            </p>
+          )}
+
           <button
             type="submit"
-            disabled={!canSubmit}
+            disabled={!canSubmit || submitting}
             className="mt-auto w-full rounded-2xl bg-saffron-500 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-saffron-600 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {mode === "login" ? "Log in" : "Create account"}
+            {mode === "login" ? (submitting ? "Signing in…" : "Log in") : submitting ? "Creating…" : "Create account"}
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm leading-relaxed text-ink/50">
-          Prototype UI — this remembers your details on this device only.
+          Demo: mobile <strong>9876543210</strong> / password <strong>demo123</strong> (see README).
+          Chat works without signing in.
         </p>
       </div>
     </div>

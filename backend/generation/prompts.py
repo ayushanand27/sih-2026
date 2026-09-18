@@ -92,6 +92,18 @@ question that would help narrow the search (for example, naming a specific \
 act, section, or topic). Do not guess, infer beyond what is stated, or fill \
 the gap with outside knowledge.
 
+2a. "Patent" has two different legal senses — identify which one the user \
+means before answering, and never mix them:
+   (a) Intellectual-property patentability under the Patents Act, 1970 \
+(inventive step, patent eligibility, Section 3(p)/(d)/(e), TKDL, etc.).
+   (b) The Drugs & Cosmetics Act regulatory label "patent or proprietary \
+medicine" (Section 3(h), First Schedule classical texts, P&P Ayurvedic \
+classification — not the same as obtaining an IP patent).
+If the question asks about sense (a) but the Context only contains sense \
+(b) material (or vice versa), treat that as insufficient context and \
+follow rule 2 — especially ask whether they mean Patents Act \
+patentability or D&C patent/proprietary medicine classification.
+
 3. Every Context passage is preceded by its own "[Chunk_ID: ...]" marker. \
 End every factual or legal claim in your answer with that passage's exact \
 Chunk_ID, copied verbatim in square brackets (e.g. "...excluded under \
@@ -134,6 +146,94 @@ _BROAD_QUERY_PATTERN = re.compile(
     r"\bpatent(?:ing)?\s+(?:a\s+)?(?:medicine|formula|formulation)\b",
     re.I,
 )
+
+# D&C Act "patent or proprietary medicine" — not IP patentability under the
+# Patents Act. Used with is_ip_patentability_query() for TRAP_01-style traps.
+_DC_PROPRIETARY_FRAMING = re.compile(
+    r"\b(?:patent\s+or\s+proprietary|proprietary\s+medicine|"
+    r"p\s*(?:&|and)\s*p\b|proprietary\s+ayurvedic)\b",
+    re.I,
+)
+_IP_PATENT_INTENT = re.compile(
+    r"\b(?:(?:can|how|may)\s+(?:i|we|you)\s+)?patent\b(?!\s+or\s+proprietary)|"
+    r"\b(?:obtain\s+a\s+patent|get\s+a\s+patent|file\s+(?:a\s+)?patent|"
+    r"patentability|patentable|patent\s+eligible|patent\s+application)\b|"
+    r"\bpatents?\s+act\b|"
+    r"\bsection\s+3\s*[\(\.]?\s*[pde]\b|"
+    r"\btkdl\b|"
+    r"\binventive\s+step\b",
+    re.I,
+)
+_IP_PATENT_SOURCE = re.compile(
+    r"Patents?_Act|Patent_Office|IPIndia_Patent|PIB_TKDL|"
+    r"Patentability_Guidelines",
+    re.I,
+)
+_IP_PATENT_TEXT = re.compile(
+    r"\bpatents?\s+act\b|"
+    r"\bpatent\s+office\b|"
+    r"\bpatentability\b|"
+    r"\binventive\s+step\b|"
+    r"\btkdl\b|"
+    r"\btraditional\s+knowledge\s+digital\s+library\b|"
+    r"section\s+3\s*[\.\(]?\s*\(?\s*[pde]\b",
+    re.I,
+)
+_DC_PROPRIETARY_TEXT_ONLY = re.compile(
+    r"patent\s+or\s+proprietary\s+medicine",
+    re.I,
+)
+
+
+def is_dc_patent_proprietary_only_framing(query: str) -> bool:
+    """True when the question is only about D&C P&P classification, not IP patents."""
+    if not _DC_PROPRIETARY_FRAMING.search(query):
+        return False
+    if _IP_PATENT_INTENT.search(query):
+        return False
+    return True
+
+
+def is_ip_patentability_query(query: str) -> bool:
+    """True when the user likely asks about Patents Act patentability, not D&C P&P labels."""
+    if "patent" not in query.lower():
+        return False
+    if is_dc_patent_proprietary_only_framing(query):
+        return False
+    return bool(_IP_PATENT_INTENT.search(query))
+
+
+def context_covers_ip_patent(chunks: list[dict]) -> bool:
+    """True if generation context includes Patents Act / IP patentability material."""
+    for chunk in chunks:
+        source = chunk.get("source_file") or chunk.get("chunk_id") or ""
+        if _IP_PATENT_SOURCE.search(source):
+            return True
+        tags = chunk.get("statutory_tags") or []
+        if any(
+            tag.startswith("Patents_Act") or tag in ("TKDL", "Patentability_Guidelines")
+            for tag in tags
+        ):
+            return True
+        text = chunk.get("text") or ""
+        if not _IP_PATENT_TEXT.search(text):
+            continue
+        if _DC_PROPRIETARY_TEXT_ONLY.search(text) and not re.search(
+            r"\bpatents?\s+act\b", text, re.I
+        ):
+            continue
+        return True
+    return False
+
+
+def ip_patent_context_abstention() -> str:
+    """Deterministic abstention when IP patent intent meets only D&C 'patent' context."""
+    return (
+        f"{ABSTENTION_MARKER}\n"
+        "Do you mean intellectual-property patentability under the Patents Act, 1970 "
+        "(e.g. Section 3), or regulatory classification as a \"patent or proprietary "
+        "medicine\" under the Drugs & Cosmetics Act?"
+    )
 
 
 def is_broad_query(query: str) -> bool:

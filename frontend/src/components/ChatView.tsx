@@ -20,6 +20,8 @@ import { PAGE_BG } from "@/lib/theme";
 import { LeafField } from "@/components/brand/LeafField";
 import { useLanguage } from "@/hooks/useLanguage";
 import { useSpeechSynthesis } from "@/hooks/useSpeechSynthesis";
+import { bulbulSupports } from "@/lib/bulbulLanguages";
+import { playWavBase64 } from "@/lib/playWavBase64";
 import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 import {
   generateSessionId,
@@ -185,7 +187,7 @@ export function ChatView({
       ? `${question} (regarding a ${category.toLowerCase()} formulation)`
       : question;
 
-    function applyDoneData(data: StreamDoneData) {
+    function applyDoneData(data: StreamDoneData, audioBase64?: string | null) {
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
@@ -202,6 +204,8 @@ export function ChatView({
                 clarifying_questions: data.clarifying_questions,
                 actionable_forms: data.actionable_forms,
                 compliance_flags: data.compliance_flags,
+                translation_degraded: data.translation_degraded ?? false,
+                audio_base64: audioBase64 ?? null,
                 pending: false,
               }
             : m
@@ -209,17 +213,38 @@ export function ChatView({
       );
     }
 
+    function speakAnswer(text: string, audioBase64?: string | null) {
+      if (audioBase64) {
+        setSpeakingId(assistantId);
+        playWavBase64(audioBase64, () => {
+          setSpeakingId(null);
+          if (voiceModeRef.current) startListening();
+        });
+        return;
+      }
+      setSpeakingId(assistantId);
+      tts.speak(text, language.bcp47, () => {
+        setSpeakingId(null);
+        if (voiceModeRef.current) startListening();
+      });
+    }
+
     try {
       let spokenAnswer = "";
+      let responseAudio: string | null = null;
+      const wantBulbulTts =
+        (voiceModeRef.current || voiceOriginated) && bulbulSupports(language.bcp47);
       const request = {
         question: augmentedQuestion,
         history,
         jurisdiction,
         language: language.bcp47,
+        synthesize_audio: wantBulbulTts,
       };
-      // /query/stream ignores `language` (no live translation). Non-English
-      // goes through blocking /query so Sarvam can translate both sides.
-      if (language.bcp47 === "en-IN") {
+      // English normally streams for UX; Bulbul TTS requires blocking /query
+      // (no audio on /query/stream). Non-English always uses /query for translation.
+      const useStream = language.bcp47 === "en-IN" && !wantBulbulTts;
+      if (useStream) {
         await queryStream(request, {
           onToken: (text) => {
             spokenAnswer += text;
@@ -238,17 +263,14 @@ export function ChatView({
       } else {
         const data = await query(request);
         spokenAnswer = data.answer;
-        applyDoneData(data);
+        responseAudio = data.audio_base64;
+        applyDoneData(data, data.audio_base64);
       }
 
       if (voiceOriginated) setVoiceMode(true);
 
       if (voiceModeRef.current) {
-        setSpeakingId(assistantId);
-        tts.speak(spokenAnswer, language.bcp47, () => {
-          setSpeakingId(null);
-          if (voiceModeRef.current) startListening();
-        });
+        speakAnswer(spokenAnswer, responseAudio);
       }
     } catch (err) {
       const message =
@@ -303,6 +325,11 @@ export function ChatView({
     if (speakingId === message.id) {
       tts.stop();
       setSpeakingId(null);
+      return;
+    }
+    if (message.audio_base64) {
+      setSpeakingId(message.id);
+      playWavBase64(message.audio_base64, () => setSpeakingId(null));
       return;
     }
     setSpeakingId(message.id);

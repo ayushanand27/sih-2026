@@ -11,7 +11,7 @@ instead of waiting for the full answer.
 /query only (not /query/stream — translating a live token stream is a
 separate, harder problem: sentence-boundary detection against a partial
 buffer, not covered here) additionally wraps the graph in a translation
-bridge (api/translation.py, Sarvam AI): the question translates to English
+bridge (api/translation.py, Bhashini primary / Sarvam fallback): the question translates to English
 before retrieval, the answer translates back to QueryRequest.language after
 generation — retrieval and the LLM prompt never see anything but English.
 Optionally also returns a spoken reading of the *translated* answer via
@@ -44,6 +44,10 @@ import json
 import logging
 import os
 import re
+import uuid
+from datetime import datetime, timezone
+import uuid
+from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
@@ -55,6 +59,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
+from api.auth_routes import router as auth_router
 from api.asr import UnsupportedAudioFormat, transcribe_audio
 from api.translation import TARGET_LANGUAGE_CODES, translate_text
 from api.tts import synthesize_speech
@@ -86,6 +91,37 @@ load_dotenv(override=True)
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
 log = logging.getLogger(__name__)
+
+# DPDP-oriented audit: metadata only unless LOG_QUERY_CONTENT=true (see
+# docs/PRIVACY_AND_AUDIT.md).
+LOG_QUERY_CONTENT = os.getenv("LOG_QUERY_CONTENT", "false").lower() in (
+    "1",
+    "true",
+    "yes",
+)
+
+
+def _audit_log_query(
+    *,
+    endpoint: str,
+    question: str,
+    language: str,
+    jurisdiction: str,
+) -> str:
+    """Structured INFO log for /query and /query/stream — no answer text."""
+    request_id = str(uuid.uuid4())
+    parts = [
+        f"audit request_id={request_id}",
+        f"endpoint={endpoint}",
+        f"ts={datetime.now(timezone.utc).isoformat()}",
+        f"query_len={len(question)}",
+        f"language={language}",
+        f"jurisdiction={jurisdiction}",
+    ]
+    if LOG_QUERY_CONTENT:
+        parts.append(f"question={question!r}")
+    log.info(" ".join(parts))
+    return request_id
 
 # 90s, not 60s: a multi-turn query (chat history present) triggers its own
 # rewrite LLM call before retrieval even starts, and the bounded retry can
@@ -193,6 +229,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
 
 
 class ChatTurn(BaseModel):
@@ -463,6 +501,17 @@ class QueryResponse(BaseModel):
             "same rule as citations/actionable_forms/related_provisions."
         ),
     )
+    translation_degraded: bool = Field(
+        default=False,
+        description=(
+            "True when translation was attempted in either direction "
+            "(question language->en-IN before retrieval, or answer en-IN->"
+            "`language` after generation) and both Bhashini and Sarvam "
+            "fail-open returned the original text unchanged. False when "
+            "translation succeeded, was skipped because `language` is "
+            "en-IN, or /query/stream (no translation on the stream path)."
+        ),
+    )
 
 
 class IngestRequest(BaseModel):
@@ -591,7 +640,7 @@ async def _invoke_graph(
 
 async def _translate_and_maybe_speak(
     english_answer: str, language: str, synthesize_audio: bool
-) -> tuple[str, str | None]:
+) -> tuple[str, str | None, bool]:
     """Translate the answer back to `language` and, if requested, synthesize
     audio for it — factored out of run_query purely to keep that function's
     cognitive complexity down; the concurrency behavior described below is
@@ -607,21 +656,22 @@ async def _translate_and_maybe_speak(
     first, since that's what gets voiced; synthesizing from English while
     displaying Hindi would be worse than the small added latency.
     """
-    translate_out = translate_text(english_answer, "en-IN", language)
+    translate_task = translate_text(english_answer, "en-IN", language)
 
     if not synthesize_audio:
-        return await translate_out, None
+        translated_answer, translation_degraded = await translate_task
+        return translated_answer, None, translation_degraded
 
     if language == "en-IN":
         audio_task = asyncio.ensure_future(synthesize_speech(english_answer, "en-IN"))
-        translated_answer = await translate_out
+        translated_answer, translation_degraded = await translate_task
     else:
-        translated_answer = await translate_out
+        translated_answer, translation_degraded = await translate_task
         audio_task = asyncio.ensure_future(
             synthesize_speech(translated_answer, language)
         )
 
-    return translated_answer, await audio_task
+    return translated_answer, await audio_task, translation_degraded
 
 
 async def run_query(
@@ -643,14 +693,17 @@ async def run_query(
     # STEP A: translate the question into English. A no-op call (returns
     # immediately, no HTTP request) when language is already English —
     # translate_text's own fallback rule, not special-cased here.
-    english_question = await translate_text(question, language, "en-IN")
+    english_question, question_degraded = await translate_text(
+        question, language, "en-IN"
+    )
 
     result = await _invoke_graph(app_graph, english_question, history, jurisdiction)
     english_answer = result["answer"]
 
-    translated_answer, audio_base64 = await _translate_and_maybe_speak(
-        english_answer, language, synthesize_audio
+    translated_answer, audio_base64, answer_degraded = (
+        await _translate_and_maybe_speak(english_answer, language, synthesize_audio)
     )
+    translation_degraded = question_degraded or answer_degraded
 
     # Deterministic, no LLM call — same keyword+category+tag matcher the
     # standalone /api/v1/compliance/forms endpoint uses. Every catalog
@@ -707,6 +760,7 @@ async def run_query(
         related_provisions=result.get("related_provisions") or [],
         actionable_forms=actionable_forms,
         compliance_flags=compliance_flags,
+        translation_degraded=translation_degraded,
     )
 
 
@@ -737,6 +791,12 @@ async def run_query(
     },
 )
 async def query(req: QueryRequest):
+    _audit_log_query(
+        endpoint="/query",
+        question=req.question,
+        language=req.language,
+        jurisdiction=req.jurisdiction,
+    )
     history = [turn.model_dump() for turn in req.history]
     return await run_query(
         question=req.question,
@@ -776,6 +836,12 @@ async def query_stream(req: QueryRequest):
     history = [turn.model_dump() for turn in req.history]
 
     async def event_generator():
+        _audit_log_query(
+            endpoint="/query/stream",
+            question=req.question,
+            language=req.language,
+            jurisdiction=req.jurisdiction,
+        )
         try:
             rewrite_state = await rewrite_query(
                 {"query": req.question, "history": history}
@@ -889,6 +955,7 @@ async def query_stream(req: QueryRequest):
                     "related_provisions": related_provisions,
                     "actionable_forms": actionable_forms,
                     "compliance_flags": compliance_flags,
+                    "translation_degraded": False,
                 },
             )
         except asyncio.TimeoutError:

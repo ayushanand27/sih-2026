@@ -49,7 +49,7 @@ function LanguageDropdown() {
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-10 cursor-default"
           />
-          <div className="absolute right-0 top-full z-20 mt-2 w-44 rounded-2xl bg-white p-1.5 shadow-panel ring-1 ring-black/5">
+          <div className="absolute right-0 top-full z-20 mt-2 w-44 max-h-64 overflow-y-auto rounded-2xl bg-white p-1.5 shadow-panel ring-1 ring-black/5">
             {LANGUAGES.map((l) => (
               <button
                 key={l.code}

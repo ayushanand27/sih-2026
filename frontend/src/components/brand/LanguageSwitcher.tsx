@@ -56,7 +56,7 @@ export function LanguageSwitcher({
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-10 cursor-default"
           />
-          <div className="absolute right-0 top-full z-20 mt-2 w-44 max-w-[calc(100vw-2rem)] rounded-2xl bg-neu-surface p-1.5 shadow-neu">
+          <div className="absolute right-0 top-full z-20 mt-2 w-44 max-h-64 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-2xl bg-neu-surface p-1.5 shadow-neu">
             {LANGUAGES.map((l) => (
               <button
                 key={l.code}
@@ -74,8 +74,9 @@ export function LanguageSwitcher({
               </button>
             ))}
             <p className="mt-1 border-t border-neu-bg px-3 pt-2 text-[10px] leading-snug text-neu-sub">
-              Questions and answers are translated by Sarvam for the selected
-              language. English uses the faster streaming path.
+              Translation: Bhashini (MeitY) first, Sarvam fallback. English
+              uses the faster streaming path unless voice mode requests Bulbul
+              TTS (then blocking /query).
             </p>
           </div>
         </>

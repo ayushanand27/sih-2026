@@ -106,7 +106,8 @@ See `/query/stream` below if you want tokens as they're generated instead
 | `language` | No | `"en-IN"` | One of the 23 codes below. Language of `question`; also what `answer` gets translated back into. `"en-IN"` skips translation entirely (zero added latency) — that's the same behavior as before this field existed, so a frontend that never sets it needs no changes. |
 | `synthesize_audio` | No | `false` | If `true`, also attempt to return `audio_base64` (see below). Adds real latency (an extra Sarvam TTS call after generation/translation) — leave `false` unless the UI actually has a play button visible. |
 
-**Valid `language` codes** (Sarvam AI's supported set, English + 22 Indian languages):
+**Valid `language` codes** (backend `TARGET_LANGUAGE_CODES` — English + 22
+Indian languages; translation uses **Bhashini first, Sarvam fallback**):
 `en-IN`, `hi-IN`, `bn-IN`, `gu-IN`, `kn-IN`, `ml-IN`, `mr-IN`, `od-IN`,
 `pa-IN`, `ta-IN`, `te-IN`, `as-IN`, `brx-IN`, `doi-IN`, `kok-IN`, `ks-IN`,
 `mai-IN`, `mni-IN`, `ne-IN`, `sa-IN`, `sat-IN`, `sd-IN`, `ur-IN`.
@@ -178,6 +179,7 @@ behavior, not the jurisdiction switch leaking.
 | `related_provisions` | array | **New.** Knowledge-graph cross-references (`backend/graph_kg/`) — each entry `{tag, relation, source_file, page_number, section_heading, jurisdiction}` points at a real, separately-indexed chunk; nothing here is new LLM-written text. `relation` is `cross_jurisdiction_counterpart` (deliberately crosses the `jurisdiction` switch — e.g. a `jurisdiction: "india"` Section 3(p) question surfacing the WIPO GRATK Treaty's international disclosure obligation as a *pointer*, while `answer`/`citations` themselves stay scoped to `jurisdiction`, per the PS's "keep the two answer-sets visibly separate" requirement) or `co_occurs_with` (tags that repeatedly co-occur in the real corpus, same jurisdiction or not). Always `[]` on an abstention. See the example below. |
 | `actionable_forms` | array | Official government forms this question likely needs next (`backend/compliance/form_navigator.py`) — each entry `{form_id, agency, jurisdiction, title, statutory_mandate, submission_portal, required_attachments, deadline}`. Deterministic keyword/tag match, no LLM call. Always `[]` for `jurisdiction: "international"` (every catalog entry is a domestic Indian registry) and always `[]` on an abstention. First-pass reference data, not verified against live government sources on every field. |
 | `compliance_flags` | array | **New.** Generic pointers (`backend/generation/compliance_flags.py`) at compliance checkpoints the *actually cited* chunks touch — each entry `{tag, note}`, where `note` is a short, deliberately generic sentence (never a fee/timeline/percentage not already in the cited text) naming which citation above it relates to. Deterministic, no LLM call. Always `[]` on an abstention, and `[]` whenever none of the cited chunks carry a tag this module recognizes — not every answer gets one. |
+| `translation_degraded` | boolean | **New.** `true` when translation was attempted in either direction (question `language`→`en-IN` before retrieval, or answer `en-IN`→`language` after generation) and both Bhashini and Sarvam fail-open returned the original text unchanged. `false` when translation succeeded, was skipped because `language` is `en-IN`, or on `/query/stream` (no translation on that path). Clients may show a non-blocking notice when `true`. |
 
 **Error responses** — see "Error handling" below.
 
@@ -459,7 +461,8 @@ where a technical term should be, that's this mechanism failing — flag it,
 it shouldn't happen anymore, but there's no way to guarantee every possible
 input is covered by the current fixed term list.
 
-Translation failures (Sarvam outage, rate limit, timeout) fail silently to
+Translation failures (Bhashini and Sarvam both unavailable, rate limit,
+timeout) fail silently to
 English — you may occasionally get an English `answer` back despite
 requesting `language: "hi-IN"`. There's currently no field telling you this
 happened; if that matters for your UI, ask backend to add one rather than

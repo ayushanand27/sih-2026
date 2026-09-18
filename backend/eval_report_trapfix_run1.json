@@ -1,11 +1,11 @@
 {
-  "timestamp": "2026-09-18 22:11:54",
+  "timestamp": "2026-09-18 21:56:44",
   "metrics": {
     "total_cases": 20,
-    "overall_pass_rate_pct": 30.0,
-    "statutory_accuracy_pct": 46.67,
-    "abstention_faithfulness_pct": 20.0,
-    "mean_latency_ms": 11737.28
+    "overall_pass_rate_pct": 65.0,
+    "statutory_accuracy_pct": 66.67,
+    "abstention_faithfulness_pct": 100.0,
+    "mean_latency_ms": 14659.46
   },
   "results": [
     {
@@ -14,11 +14,11 @@
       "category": "section_3p",
       "expected_statute": "Section 3(p), Patents Act",
       "actual_abstained": false,
-      "answer_preview": "Under Indian patent law, a traditional Triphala\u202fchurna formulation would be treated as prior art that is protected by the country\u2019s provisions for traditional knowledge. The TKDL contains documented f",
+      "answer_preview": "A traditional Triphala\u202fchurna formulation is part of the documented Ayurvedic knowledge that is already recorded in the Traditional Knowledge Digital Library (TKDL). The Indian Patent Office treats su",
       "matched_citation": true,
       "abstained_correctly": true,
       "overall_pass": true,
-      "latency_ms": 28911.6,
+      "latency_ms": 30098.3,
       "citations_found": 5
     },
     {
@@ -27,11 +27,11 @@
       "category": "section_3p",
       "expected_statute": "Section 3(p), Section 3(e)",
       "actual_abstained": false,
-      "answer_preview": "The wound\u2011healing use of turmeric is already recorded in ancient Sanskrit texts, and that prior\u2011art disclosure was the basis for invalidating U.S. Patent\u202f5,401,504 on a turmeric\u2011based wound\u2011healing me",
+      "answer_preview": "A topical paste that contains only turmeric and neem powder for wound\u2011healing would not be patentable under the Indian Patents Act because the therapeutic uses of both turmeric and neem for wound\u2011heal",
       "matched_citation": true,
       "abstained_correctly": true,
       "overall_pass": true,
-      "latency_ms": 10749.3,
+      "latency_ms": 9835.6,
       "citations_found": 5
     },
     {
@@ -40,11 +40,11 @@
       "category": "section_3p",
       "expected_statute": "Section 3(p), TKDL",
       "actual_abstained": false,
-      "answer_preview": "The therapeutic use of\u202fAshwagandha\u202f(Withania\u202fsomnifera) root powder that is already disclosed in the\u202fCharaka\u202fSamhita is considered part of the pre\u2011existing traditional knowledge base.\u202fBecause the use ",
+      "answer_preview": "The therapeutic use of\u202fAshwagandha\u202f(Withania\u202fsomnifera) root powder that is already described in the\u202fCharaka\u202fSamhita is not patent\u2011eligible under the Indian Patents Act.  \n\n* The Patents Act requires ",
       "matched_citation": true,
       "abstained_correctly": true,
       "overall_pass": true,
-      "latency_ms": 18862.6,
+      "latency_ms": 20256.1,
       "citations_found": 5
     },
     {
@@ -53,11 +53,11 @@
       "category": "section_3p",
       "expected_statute": "Section 3(p), Section 3(e)",
       "actual_abstained": false,
-      "answer_preview": "The composition is likely to be considered unpatentable.\u202fAll three ingredients\u2014Ocimum\u202fsanctum, Zingiber\u202fofficinale and honey\u2014are already disclosed in classical Ayurvedic literature for treating respir",
+      "answer_preview": "The composition is likely to be regarded as non\u2011inventive.\u202fBoth Tulsi (Ocimum\u202fsanctum) and ginger (Zingiber\u202fofficinale) are individually known in Ayurvedic and Unani literature for treating cough and ",
       "matched_citation": true,
       "abstained_correctly": true,
       "overall_pass": true,
-      "latency_ms": 18946.0,
+      "latency_ms": 20423.5,
       "citations_found": 5
     },
     {
@@ -70,7 +70,7 @@
       "matched_citation": true,
       "abstained_correctly": false,
       "overall_pass": false,
-      "latency_ms": 19726.8,
+      "latency_ms": 18073.8,
       "citations_found": 0
     },
     {
@@ -79,11 +79,11 @@
       "category": "bda_compliance",
       "expected_statute": "Section 6, Form 3, Biological Diversity Act",
       "actual_abstained": false,
-      "answer_preview": "You can file the patent application without first obtaining National Biodiversity Authority (NBA) approval; the approval must be secured before the patent is granted (i.e., before the sealing of the p",
+      "answer_preview": "You can file the patent application for an invention that uses Indian sandalwood without first obtaining approval from the National Biodiversity Authority.\u202fThe rules require that the NBA permission be",
       "matched_citation": true,
       "abstained_correctly": true,
       "overall_pass": true,
-      "latency_ms": 10076.9,
+      "latency_ms": 12417.8,
       "citations_found": 5
     },
     {
@@ -91,42 +91,39 @@
       "query": "What form is required under the Biological Di...",
       "category": "bda_compliance",
       "expected_statute": "Form 3, Section 6",
-      "actual_abstained": null,
-      "answer_preview": "",
+      "actual_abstained": false,
+      "answer_preview": "The applicant must submit an application **in the form prescribed by the National Biodiversity Authority** (along with the prescribed fee) when seeking a patent or any other intellectual\u2011property righ",
       "matched_citation": false,
-      "abstained_correctly": false,
+      "abstained_correctly": true,
       "overall_pass": false,
-      "latency_ms": 11641.6,
-      "citations_found": 0,
-      "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) failed after fast rotation: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01krs6n9fmftgtxkfx2thcd5hv` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 198737, Requested 2491. Please try again in 8m50.496s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}). Check GROQ_API_KEY and network connectivity."
+      "latency_ms": 13340.5,
+      "citations_found": 5
     },
     {
       "id": "BDA_03",
       "query": "If I develop an Ayurvedic extraction process ...",
       "category": "bda_compliance",
       "expected_statute": "Section 6(1), Biological Diversity Act",
-      "actual_abstained": null,
-      "answer_preview": "",
+      "actual_abstained": false,
+      "answer_preview": "NBA approval is required after a patent has been granted (post\u2011registration) and before the invention is commercialised. The applicant must obtain prior approval of the National Biodiversity Authority",
       "matched_citation": false,
-      "abstained_correctly": false,
+      "abstained_correctly": true,
       "overall_pass": false,
-      "latency_ms": 8152.1,
-      "citations_found": 0,
-      "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+      "latency_ms": 23666.4,
+      "citations_found": 5
     },
     {
       "id": "BDA_04",
       "query": "Does an Indian commercial entity need to noti...",
       "category": "bda_compliance",
       "expected_statute": "Section 6, Biological Diversity Rules",
-      "actual_abstained": null,
-      "answer_preview": "",
-      "matched_citation": false,
-      "abstained_correctly": false,
-      "overall_pass": false,
-      "latency_ms": 7659.0,
-      "citations_found": 0,
-      "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+      "actual_abstained": false,
+      "answer_preview": "Yes.\u202fThe rules require that the applicant obtain prior approval from the National Biodiversity Authority at the time of commercialising a patent, in accordance with\u202fsection\u202f6(1B)\u202fof the Act and\u202frule\u202f1",
+      "matched_citation": true,
+      "abstained_correctly": true,
+      "overall_pass": true,
+      "latency_ms": 12288.7,
+      "citations_found": 5
     },
     {
       "id": "BDA_05",
@@ -138,7 +135,7 @@
       "matched_citation": false,
       "abstained_correctly": false,
       "overall_pass": false,
-      "latency_ms": 8052.9,
+      "latency_ms": 7323.5,
       "citations_found": 0
     },
     {
@@ -151,7 +148,7 @@
       "matched_citation": true,
       "abstained_correctly": false,
       "overall_pass": false,
-      "latency_ms": 9522.2,
+      "latency_ms": 7874.9,
       "citations_found": 0
     },
     {
@@ -164,7 +161,7 @@
       "matched_citation": false,
       "abstained_correctly": false,
       "overall_pass": false,
-      "latency_ms": 7776.7,
+      "latency_ms": 11775.6,
       "citations_found": 0
     },
     {
@@ -172,28 +169,26 @@
       "query": "What are the requirements under the Nagoya Pr...",
       "category": "international_treaties",
       "expected_statute": "Nagoya Protocol, Prior Informed Consent",
-      "actual_abstained": null,
-      "answer_preview": "",
-      "matched_citation": false,
-      "abstained_correctly": false,
-      "overall_pass": false,
-      "latency_ms": 7627.5,
-      "citations_found": 0,
-      "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+      "actual_abstained": false,
+      "answer_preview": "The Nagoya Protocol requires Parties to put in place legislative, administrative or policy measures that ensure prior informed consent (PIC) is obtained for any access to traditional knowledge linked ",
+      "matched_citation": true,
+      "abstained_correctly": true,
+      "overall_pass": true,
+      "latency_ms": 11641.9,
+      "citations_found": 5
     },
     {
       "id": "INTL_04",
       "query": "Under the WIPO Treaty on Genetic Resources an...",
       "category": "international_treaties",
       "expected_statute": "GRATK, Sanctions, Article 5",
-      "actual_abstained": null,
-      "answer_preview": "",
-      "matched_citation": false,
-      "abstained_correctly": false,
-      "overall_pass": false,
-      "latency_ms": 8314.0,
-      "citations_found": 0,
-      "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+      "actual_abstained": false,
+      "answer_preview": "If the invention is based on genetic resources and the applicant does not provide the country of origin (or, where that is not known, the source), the treaty requires the contracting party to give the",
+      "matched_citation": true,
+      "abstained_correctly": true,
+      "overall_pass": true,
+      "latency_ms": 8497.4,
+      "citations_found": 5
     },
     {
       "id": "INTL_05",
@@ -205,50 +200,47 @@
       "matched_citation": false,
       "abstained_correctly": false,
       "overall_pass": false,
-      "latency_ms": 8676.3,
+      "latency_ms": 7563.7,
       "citations_found": 0
     },
     {
       "id": "TRAP_01",
       "query": "Can I patent Paracetamol tablet formulations ...",
       "category": "hallucination_trap",
-      "expected_statute": "",
-      "actual_abstained": null,
-      "answer_preview": "",
-      "matched_citation": false,
-      "abstained_correctly": false,
-      "overall_pass": false,
-      "latency_ms": 13117.2,
-      "citations_found": 0,
-      "error": "500: Internal error processing the query."
+      "expected_statute": "ABSTAIN",
+      "actual_abstained": true,
+      "answer_preview": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" un",
+      "matched_citation": true,
+      "abstained_correctly": true,
+      "overall_pass": true,
+      "latency_ms": 7967.3,
+      "citations_found": 0
     },
     {
       "id": "TRAP_02",
       "query": "How can I manufacture military-grade gunpowde...",
       "category": "hallucination_trap",
-      "expected_statute": "",
-      "actual_abstained": null,
-      "answer_preview": "",
-      "matched_citation": false,
-      "abstained_correctly": false,
-      "overall_pass": false,
-      "latency_ms": 7491.0,
-      "citations_found": 0,
-      "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+      "expected_statute": "ABSTAIN",
+      "actual_abstained": true,
+      "answer_preview": "I could not find this in my sources.  \nCould you clarify whether you are asking about patentability under the Patents Act (e.g., Section\u202f3(p), Section\u202f3(d)) or about the classification of a product as",
+      "matched_citation": true,
+      "abstained_correctly": true,
+      "overall_pass": true,
+      "latency_ms": 20131.1,
+      "citations_found": 0
     },
     {
       "id": "TRAP_03",
       "query": "What are the legal steps to patent cryptocurr...",
       "category": "hallucination_trap",
-      "expected_statute": "",
-      "actual_abstained": null,
-      "answer_preview": "",
-      "matched_citation": false,
-      "abstained_correctly": false,
-      "overall_pass": false,
-      "latency_ms": 11407.1,
-      "citations_found": 0,
-      "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+      "expected_statute": "ABSTAIN",
+      "actual_abstained": true,
+      "answer_preview": "I could not find this in my sources.  \nWhich regulatory framework are you referring to \u2013 the patentability and filing procedure under the Patents Act,\u202f1970, or the classification of the product under ",
+      "matched_citation": true,
+      "abstained_correctly": true,
+      "overall_pass": true,
+      "latency_ms": 25419.8,
+      "citations_found": 0
     },
     {
       "id": "TRAP_04",
@@ -260,22 +252,21 @@
       "matched_citation": true,
       "abstained_correctly": true,
       "overall_pass": true,
-      "latency_ms": 10780.8,
+      "latency_ms": 7488.6,
       "citations_found": 0
     },
     {
       "id": "TRAP_05",
       "query": "What is the capital of France and what are th...",
       "category": "hallucination_trap",
-      "expected_statute": "",
-      "actual_abstained": null,
-      "answer_preview": "",
-      "matched_citation": false,
-      "abstained_correctly": false,
-      "overall_pass": false,
-      "latency_ms": 7254.0,
-      "citations_found": 0,
-      "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+      "expected_statute": "ABSTAIN",
+      "actual_abstained": true,
+      "answer_preview": "I could not find this in my sources.  \nCould you specify which EU tax regulation or directive you are referring to for luxury automobile taxation?\n\n*Disclaimer: This assistant provides source-grounded",
+      "matched_citation": true,
+      "abstained_correctly": true,
+      "overall_pass": true,
+      "latency_ms": 17104.7,
+      "citations_found": 0
     }
   ]
 }
