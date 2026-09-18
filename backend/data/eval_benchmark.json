@@ -93,7 +93,8 @@
     "category": "international_treaties",
     "jurisdiction": "international",
     "expected_statutes": ["Budapest Treaty", "microorganism"],
-    "should_abstain": false
+    "should_abstain": false,
+    "triage_note": "GENUINE_GAP — indexed international corpus may not bridge Ayurvedic herbal patents to Budapest deposit rules in one citable passage; abstention can be correct until corpus grows (see docs/EVAL_TRIAGE.md)."
   },
   {
     "id": "INTL_03",
