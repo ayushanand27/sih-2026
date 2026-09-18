@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "test": "jest",
+    "test:smoke": "jest --testPathPatterns \"CitationCard|AbstentionBanner|IntakeScreen\"",
     "test:watch": "jest --watch"
   },
   "dependencies": {

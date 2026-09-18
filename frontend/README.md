@@ -26,6 +26,17 @@ cp .env.local.example .env.local   # points NEXT_PUBLIC_API_BASE_URL at your loc
 npm run dev
 ```
 
+### UI smoke tests (Jest + React Testing Library)
+
+Contract-critical UI pieces — citation PDF action, abstention banner, jurisdiction
+intake toggle — have RTL smoke tests under `src/components/*.test.tsx`:
+
+```bash
+npm run test:smoke
+```
+
+Full suite: `npm test`.
+
 Opens on `http://localhost:3000`, talking to whatever `NEXT_PUBLIC_API_BASE_URL`
 in `.env.local` points at (a locally-running copy of `../backend/` by default).
 This file is for local development only and is never read in production —
