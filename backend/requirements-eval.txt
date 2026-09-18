@@ -1,0 +1,32 @@
+# RAG evaluation (scripts/evaluate_ragas.py) — Faithfulness/ResponseRelevancy
+# scoring via RAGAS, against this project's real Groq-generated answers and
+# real retrieved chunk text (langchain-groq / langchain-huggingface so the
+# judge LLM and embeddings match what the pipeline itself uses — see
+# evaluate_ragas.py's own docstring for why, not OpenAI's defaults).
+#
+# Deliberately NOT merged into requirements.txt: ragas 0.4.3 requires
+# langchain-core>=1.6 (via langchain 1.4.0 / langchain-community 0.4.2 /
+# langchain-groq 1.1.3 / langchain-huggingface 1.2.2), which hard-conflicts
+# with this project's own pinned langgraph==0.3.15 / langchain-core==0.3.85
+# (bumped from 0.2.60/0.3.28 for known CVEs, still pre-1.0 — see
+# requirements.txt's own comment on that bump)
+# that graph/build_graph.py is written and tested against — pip's resolver
+# refuses the combination outright, it isn't a soft/optional conflict.
+# Install this into a SEPARATE virtual environment from backend/.venv:
+#
+#   python -m venv .venv-eval
+#   .venv-eval/Scripts/pip install -r requirements.txt -r requirements-eval.txt
+#   .venv-eval/Scripts/python scripts/evaluate_ragas.py
+#
+# Installing these into the same environment that runs api/main.py (directly
+# or via `pip install -r requirements.txt -r requirements-eval.txt` in one
+# env) will silently upgrade langgraph/langchain-core past what the actual
+# pipeline is pinned to and verified against — confirmed to break
+# langchain_groq's own import under the older pin, and left unverified
+# (not "confirmed fine") in the other direction since this project's
+# graph.build_graph import chain couldn't be exercised end-to-end in the
+# environment this was written in either way (see evaluate_ragas.py).
+ragas==0.4.3
+datasets==5.0.1
+langchain-groq==1.1.3
+langchain-huggingface==1.2.2

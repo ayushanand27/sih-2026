@@ -1,0 +1,26 @@
+repos:
+  - repo: https://github.com/psf/black
+    rev: 24.10.0
+    hooks:
+      - id: black
+        files: ^backend/
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        # --src-path=backend: pre-commit invokes this from the repo root
+        # (not backend/), so without an explicit src path isort can't tell
+        # this project's own packages (api, compliance, graph, ingestion,
+        # ...) are first-party — it groups them alphabetically with
+        # third-party imports instead of in their own block, differently
+        # from running `isort --profile black .` by hand from inside
+        # backend/. Found by actually running `pre-commit run --all-files`
+        # and diffing its output against the manual run, not assumed.
+        args: ["--profile", "black", "--src-path", "backend"]
+        files: ^backend/
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.1
+    hooks:
+      - id: flake8
+        files: ^backend/
+        args: ["--select=E9,F63,F7,F82,F401,F841"]

@@ -1,0 +1,40 @@
+# Ingestion
+pdfplumber==0.11.4
+rank-bm25==0.2.2
+sentence-transformers==3.3.1
+
+# Database
+psycopg[binary]==3.2.3
+pgvector==0.3.6
+python-dotenv==1.0.1
+
+# API layer (used from Step 7 onward)
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+httpx==0.27.2
+python-multipart==0.0.32
+
+# Form generation (compliance/form_generator.py) — fillable .docx from
+# compliance/form_navigator.py's already-verified catalog
+python-docx==1.1.2
+
+# Evaluation (scripts/evaluate_pipeline.py)
+tabulate==0.9.0
+
+# Orchestration + LLM (used from Step 4 onward)
+# Bumped from 0.2.60/0.3.28 for known CVEs (pip-audit) while staying on
+# the pre-1.0 line this codebase is written against — langgraph 1.x pulls
+# langchain-core>=1.x, which is a hard, verified conflict with the rest of
+# this stack (see backend/requirements-eval.txt). Compatibility of this
+# exact StateGraph/add_node/add_conditional_edges/compile API surface
+# checked directly against these two versions in an isolated venv before
+# pinning — see graph/build_graph.py.
+langgraph==0.3.15
+langchain-core==0.3.85
+groq==0.13.1
+ollama==0.4.4
+
+# Tests (tests/, run with `python -m pytest`)
+pytest==9.1.1
+pytest-asyncio==1.4.0

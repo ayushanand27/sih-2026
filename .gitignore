@@ -1,0 +1,17 @@
+.env
+.env.local
+**/.env
+backend/.env
+frontend/.env.local
+**/data/**/*.pdf
+**/indexes/
+__pycache__/
+*.pyc
+node_modules/
+.venv/
+.venv-eval/
+*.egg-info/
+*.log
+.next/
+.pytest_cache/
+frontend/tsconfig.tsbuildinfo
