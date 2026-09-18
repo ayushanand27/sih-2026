@@ -64,6 +64,21 @@ def test_domestic_tk_tag_surfaces_real_international_counterpart():
         ), "must not point back at its own input tag"
 
 
+def test_related_provisions_carry_deterministic_second_hop():
+    results = related_provisions_for(["Patents_Act_Sec3p"])
+    assert results
+    for entry in results:
+        assert "second_hop" in entry
+        hop = entry["second_hop"]
+        if hop is not None:
+            assert hop["tag"] != entry["tag"]
+            assert hop["source_file"]
+            assert hop["relation"] in (
+                "cross_jurisdiction_counterpart",
+                "co_occurs_with",
+            )
+
+
 def test_related_provisions_are_capped_and_deduped():
     """Even a tag with many graph neighbors returns a short, deduped
     list — MAX_RELATED, not the whole neighborhood — and never repeats

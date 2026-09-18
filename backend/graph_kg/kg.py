@@ -110,6 +110,42 @@ def _candidate_tags(
     return candidates
 
 
+def _provision_dict(
+    related_tag: str, relation: str, tag_examples: dict
+) -> dict:
+    example = tag_examples[related_tag]
+    return {
+        "tag": related_tag,
+        "relation": relation,
+        "source_file": example["source_file"],
+        "page_number": example["page_number"],
+        "section_heading": example["section_heading"],
+        "jurisdiction": example["jurisdiction"],
+    }
+
+
+def _deterministic_second_hop(
+    from_tag: str,
+    *,
+    input_tags: set[str],
+    first_hop_tags: set[str],
+    cross_jurisdiction: dict,
+    co_occurrence: dict,
+    tag_examples: dict,
+) -> dict | None:
+    """One additional hop from ``from_tag``, deterministic (sorted), no LLM."""
+    exclude = input_tags | first_hop_tags | {from_tag}
+    candidates = _candidate_tags(
+        [from_tag], cross_jurisdiction, co_occurrence, tag_examples
+    )
+    candidates.sort(key=lambda c: (c[0], c[1]))
+    for _, related_tag, relation in candidates:
+        if related_tag in exclude:
+            continue
+        return _provision_dict(related_tag, relation, tag_examples)
+    return None
+
+
 def related_provisions_for(tags: list[str]) -> list[dict]:
     """
     Given the statutory tags actually present on this query's retrieved
@@ -135,18 +171,19 @@ def related_provisions_for(tags: list[str]) -> list[dict]:
     candidates.sort(key=lambda c: c[0])
 
     results = []
+    first_hop_tags: set[str] = set()
     for _, related_tag, relation in candidates[:MAX_RELATED]:
-        example = tag_examples[related_tag]
-        results.append(
-            {
-                "tag": related_tag,
-                "relation": relation,
-                "source_file": example["source_file"],
-                "page_number": example["page_number"],
-                "section_heading": example["section_heading"],
-                "jurisdiction": example["jurisdiction"],
-            }
+        first_hop_tags.add(related_tag)
+        entry = _provision_dict(related_tag, relation, tag_examples)
+        entry["second_hop"] = _deterministic_second_hop(
+            related_tag,
+            input_tags=set(tags),
+            first_hop_tags=first_hop_tags,
+            cross_jurisdiction=kg.get("cross_jurisdiction", {}),
+            co_occurrence=kg.get("co_occurrence", {}),
+            tag_examples=tag_examples,
         )
+        results.append(entry)
     return results
 
 
