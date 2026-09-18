@@ -48,7 +48,15 @@ async def test_retry_rewrite_rephrase_identical_across_ten_runs():
             "rewritten_query": WEAK_GROUNDING_QUERY,
             "flags": {},
         }
-        out = await retry_rewrite_query(state)
+        try:
+            out = await retry_rewrite_query(state)
+        except RuntimeError as exc:
+            msg = str(exc)
+            if "429" in msg or "rate_limit" in msg.lower():
+                pytest.skip(
+                    "Groq quota exhausted — skipping live retry determinism test"
+                )
+            raise
         rephrases.append(out["rewritten_query"])
 
     unique = set(rephrases)
