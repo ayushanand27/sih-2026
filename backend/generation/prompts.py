@@ -104,6 +104,15 @@ If the question asks about sense (a) but the Context only contains sense \
 follow rule 2 — especially ask whether they mean Patents Act \
 patentability or D&C patent/proprietary medicine classification.
 
+2b. Wording such as "patent protection", "patent eligibility", \
+"patentability", or "obtain/obtaining a patent" means sense (a) — answer \
+from Patents Act, TKDL, or IP-office material in the Context even if the \
+question also mentions classical Ayurveda, Bhasma, or related Ayurvedic \
+preparations, or even if D&C First Schedule / "patent or proprietary \
+medicine" passages also appear in the Context. Do not abstain under rule \
+2 merely because both senses' keywords appear together when the user's \
+wording is clearly IP patentability (sense (a)).
+
 3. Every Context passage is preceded by its own "[Chunk_ID: ...]" marker. \
 End every factual or legal claim in your answer with that passage's exact \
 Chunk_ID, copied verbatim in square brackets (e.g. "...excluded under \
@@ -157,7 +166,8 @@ _DC_PROPRIETARY_FRAMING = re.compile(
 _IP_PATENT_INTENT = re.compile(
     r"\b(?:(?:can|how|may)\s+(?:i|we|you)\s+)?patent\b(?!\s+or\s+proprietary)|"
     r"\b(?:obtain\s+a\s+patent|get\s+a\s+patent|file\s+(?:a\s+)?patent|"
-    r"patentability|patentable|patent\s+eligible|patent\s+application)\b|"
+    r"patentability|patentable|patent\s+eligible|patent\s+protection|"
+    r"patent\s+application)\b|"
     r"\bpatents?\s+act\b|"
     r"\bsection\s+3\s*[\(\.]?\s*[pde]\b|"
     r"\btkdl\b|"
@@ -183,6 +193,15 @@ _DC_PROPRIETARY_TEXT_ONLY = re.compile(
     r"patent\s+or\s+proprietary\s+medicine",
     re.I,
 )
+# TRAP_01 / TRAP_04 shape: IP "patent" ask framed with D&C classical / First
+# Schedule regulatory language — not BDA "patent applicants", PCT filings, etc.
+_IP_PATENT_DC_TRAP_QUERY = re.compile(
+    r"\bclassical\b.{0,100}\b(?:ayurveda|ayurvedic|drug\s+provision)\b|"
+    r"\b(?:ayurveda|ayurvedic)\b.{0,100}\bclassical\b|"
+    r"\bfirst\s+schedule\b.{0,60}\b(?:drugs?\s*&\s*cosmetics|d\s*&\s*c)\b|"
+    r"\b(?:drugs?\s*&\s*cosmetics|d\s*&\s*c)\b.{0,60}\bfirst\s+schedule\b",
+    re.I,
+)
 
 
 def is_dc_patent_proprietary_only_framing(query: str) -> bool:
@@ -203,8 +222,19 @@ def is_ip_patentability_query(query: str) -> bool:
     return bool(_IP_PATENT_INTENT.search(query))
 
 
+def should_force_ip_patent_context_abstention(
+    query: str, reranked_chunks: list[dict]
+) -> bool:
+    """Deterministic TRAP_01 guard: IP patent ask + D&C framing, no Patents Act context."""
+    if not is_ip_patentability_query(query):
+        return False
+    if not _IP_PATENT_DC_TRAP_QUERY.search(query):
+        return False
+    return not context_covers_ip_patent(reranked_chunks)
+
+
 def context_covers_ip_patent(chunks: list[dict]) -> bool:
-    """True if generation context includes Patents Act / IP patentability material."""
+    """True if retrieved context includes Patents Act / IP patentability material."""
     for chunk in chunks:
         source = chunk.get("source_file") or chunk.get("chunk_id") or ""
         if _IP_PATENT_SOURCE.search(source):

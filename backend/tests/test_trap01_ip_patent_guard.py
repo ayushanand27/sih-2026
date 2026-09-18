@@ -9,6 +9,7 @@ from generation.prompts import (
     context_covers_ip_patent,
     is_dc_patent_proprietary_only_framing,
     is_ip_patentability_query,
+    should_force_ip_patent_context_abstention,
 )
 from graph.nodes import generate_answer
 from graph.state import DEFAULT_FLAGS
@@ -57,6 +58,23 @@ def test_dc_only_chunks_do_not_cover_ip_patent():
 
 def test_patents_act_chunk_covers_ip_patent():
     assert context_covers_ip_patent(PATENTS_ACT_CHUNK)
+
+
+def test_bda_patent_applicant_query_does_not_force_trap_guard():
+    q = (
+        "What are the Access and Benefit Sharing obligations under Section 6 "
+        "of the Biological Diversity Act for patent applicants?"
+    )
+    assert is_ip_patentability_query(q)
+    assert not should_force_ip_patent_context_abstention(q, DC_ONLY_CHUNKS)
+
+
+def test_trap04_query_forces_abstention_without_patents_context():
+    q = (
+        "Can I obtain a patent for synthetic mRNA COVID vaccines under the "
+        "First Schedule of the Drugs & Cosmetics Act?"
+    )
+    assert should_force_ip_patent_context_abstention(q, DC_ONLY_CHUNKS)
 
 
 @pytest.mark.asyncio
