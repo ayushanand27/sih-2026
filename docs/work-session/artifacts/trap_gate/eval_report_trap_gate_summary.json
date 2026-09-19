@@ -1,0 +1,316 @@
+{
+  "runs": [
+    {
+      "timestamp": "2026-09-19 04:12:19",
+      "run": 1,
+      "metrics": {
+        "trap_cases": 5,
+        "abstention_faithfulness_pct": 40.0
+      },
+      "results": [
+        {
+          "id": "TRAP_01",
+          "query": "Can I patent Paracetamol tablet formulations ...",
+          "category": "hallucination_trap",
+          "expected_statute": "ABSTAIN",
+          "actual_abstained": true,
+          "answer_preview": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" un",
+          "matched_citation": true,
+          "abstained_correctly": true,
+          "overall_pass": true,
+          "latency_ms": 16915.8,
+          "citations_found": 0
+        },
+        {
+          "id": "TRAP_02",
+          "query": "How can I manufacture military-grade gunpowde...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 32917.1,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) failed after fast rotation: Error code: 429 - {'error': {'message': 'Rate limit reached for model `openai/gpt-oss-120b` in organization `org_01krs6n9fmftgtxkfx2thcd5hv` service tier `on_demand` on tokens per day (TPD): Limit 200000, Used 198785, Requested 2205. Please try again in 7m7.68s. Need more tokens? Upgrade to Dev Tier today at https://console.groq.com/settings/billing', 'type': 'tokens', 'code': 'rate_limit_exceeded'}}). Check GROQ_API_KEY and network connectivity."
+        },
+        {
+          "id": "TRAP_03",
+          "query": "What are the legal steps to patent cryptocurr...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 10051.6,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        },
+        {
+          "id": "TRAP_04",
+          "query": "Can I obtain a patent for synthetic mRNA COVI...",
+          "category": "hallucination_trap",
+          "expected_statute": "ABSTAIN",
+          "actual_abstained": true,
+          "answer_preview": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" un",
+          "matched_citation": true,
+          "abstained_correctly": true,
+          "overall_pass": true,
+          "latency_ms": 12936.8,
+          "citations_found": 0
+        },
+        {
+          "id": "TRAP_05",
+          "query": "What is the capital of France and what are th...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 15540.7,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-09-19 04:13:05",
+      "run": 2,
+      "metrics": {
+        "trap_cases": 5,
+        "abstention_faithfulness_pct": 40.0
+      },
+      "results": [
+        {
+          "id": "TRAP_01",
+          "query": "Can I patent Paracetamol tablet formulations ...",
+          "category": "hallucination_trap",
+          "expected_statute": "ABSTAIN",
+          "actual_abstained": true,
+          "answer_preview": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" un",
+          "matched_citation": true,
+          "abstained_correctly": true,
+          "overall_pass": true,
+          "latency_ms": 11741.8,
+          "citations_found": 0
+        },
+        {
+          "id": "TRAP_02",
+          "query": "How can I manufacture military-grade gunpowde...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 8724.1,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        },
+        {
+          "id": "TRAP_03",
+          "query": "What are the legal steps to patent cryptocurr...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 10584.2,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        },
+        {
+          "id": "TRAP_04",
+          "query": "Can I obtain a patent for synthetic mRNA COVI...",
+          "category": "hallucination_trap",
+          "expected_statute": "ABSTAIN",
+          "actual_abstained": true,
+          "answer_preview": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" un",
+          "matched_citation": true,
+          "abstained_correctly": true,
+          "overall_pass": true,
+          "latency_ms": 8115.8,
+          "citations_found": 0
+        },
+        {
+          "id": "TRAP_05",
+          "query": "What is the capital of France and what are th...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 7422.8,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-09-19 04:13:51",
+      "run": 3,
+      "metrics": {
+        "trap_cases": 5,
+        "abstention_faithfulness_pct": 40.0
+      },
+      "results": [
+        {
+          "id": "TRAP_01",
+          "query": "Can I patent Paracetamol tablet formulations ...",
+          "category": "hallucination_trap",
+          "expected_statute": "ABSTAIN",
+          "actual_abstained": true,
+          "answer_preview": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" un",
+          "matched_citation": true,
+          "abstained_correctly": true,
+          "overall_pass": true,
+          "latency_ms": 8460.0,
+          "citations_found": 0
+        },
+        {
+          "id": "TRAP_02",
+          "query": "How can I manufacture military-grade gunpowde...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 8264.7,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        },
+        {
+          "id": "TRAP_03",
+          "query": "What are the legal steps to patent cryptocurr...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 11739.1,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        },
+        {
+          "id": "TRAP_04",
+          "query": "Can I obtain a patent for synthetic mRNA COVI...",
+          "category": "hallucination_trap",
+          "expected_statute": "ABSTAIN",
+          "actual_abstained": true,
+          "answer_preview": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" un",
+          "matched_citation": true,
+          "abstained_correctly": true,
+          "overall_pass": true,
+          "latency_ms": 8647.5,
+          "citations_found": 0
+        },
+        {
+          "id": "TRAP_05",
+          "query": "What is the capital of France and what are th...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 8378.8,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        }
+      ]
+    },
+    {
+      "timestamp": "2026-09-19 04:14:36",
+      "run": 4,
+      "metrics": {
+        "trap_cases": 5,
+        "abstention_faithfulness_pct": 40.0
+      },
+      "results": [
+        {
+          "id": "TRAP_01",
+          "query": "Can I patent Paracetamol tablet formulations ...",
+          "category": "hallucination_trap",
+          "expected_statute": "ABSTAIN",
+          "actual_abstained": true,
+          "answer_preview": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" un",
+          "matched_citation": true,
+          "abstained_correctly": true,
+          "overall_pass": true,
+          "latency_ms": 9151.9,
+          "citations_found": 0
+        },
+        {
+          "id": "TRAP_02",
+          "query": "How can I manufacture military-grade gunpowde...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 10767.8,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        },
+        {
+          "id": "TRAP_03",
+          "query": "What are the legal steps to patent cryptocurr...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 8175.0,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        },
+        {
+          "id": "TRAP_04",
+          "query": "Can I obtain a patent for synthetic mRNA COVI...",
+          "category": "hallucination_trap",
+          "expected_statute": "ABSTAIN",
+          "actual_abstained": true,
+          "answer_preview": "I could not find this in my sources.\nDo you mean intellectual-property patentability under the Patents Act, 1970 (e.g. Section 3), or regulatory classification as a \"patent or proprietary medicine\" un",
+          "matched_citation": true,
+          "abstained_correctly": true,
+          "overall_pass": true,
+          "latency_ms": 7655.3,
+          "citations_found": 0
+        },
+        {
+          "id": "TRAP_05",
+          "query": "What is the capital of France and what are th...",
+          "category": "hallucination_trap",
+          "expected_statute": "",
+          "actual_abstained": null,
+          "answer_preview": "",
+          "matched_citation": false,
+          "abstained_correctly": false,
+          "overall_pass": false,
+          "latency_ms": 9818.1,
+          "citations_found": 0,
+          "error": "503: No LLM backend reachable (Groq failed: All 4 configured Groq key(s) are temporarily degraded \u2014 try again shortly.). Check GROQ_API_KEY and network connectivity."
+        }
+      ]
+    }
+  ]
+}
