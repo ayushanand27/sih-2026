@@ -104,9 +104,7 @@ class AuthStore:
         return actual == expected
 
     def _seed_demo_user(self) -> None:
-        demo_phone = normalize_phone_digits(
-            os.getenv("DEMO_LOGIN_PHONE", "9876543210")
-        )
+        demo_phone = normalize_phone_digits(os.getenv("DEMO_LOGIN_PHONE", "9876543210"))
         demo_password = os.getenv("DEMO_LOGIN_PASSWORD", "demo123")
         demo_name = os.getenv("DEMO_LOGIN_NAME", "Demo User")
         demo_email = os.getenv("DEMO_LOGIN_EMAIL", "demo@ipsakti.local")
@@ -160,7 +158,9 @@ class AuthStore:
                 )
                 conn.commit()
             except sqlite3.IntegrityError as exc:
-                raise ValueError("An account with that email or mobile already exists.") from exc
+                raise ValueError(
+                    "An account with that email or mobile already exists."
+                ) from exc
         return StoredUser(
             id=user_id,
             name=name.strip(),
@@ -195,7 +195,9 @@ class AuthStore:
 
     def get_by_id(self, user_id: str) -> StoredUser | None:
         with self._lock, self._connect() as conn:
-            row = conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+            row = conn.execute(
+                "SELECT * FROM users WHERE id = ?", (user_id,)
+            ).fetchone()
         if row is None:
             return None
         return StoredUser(

@@ -40,7 +40,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 # backend/ on sys.path, so this also runs as a plain script (not just
 # `-m scripts.evaluate_pipeline`) -- this file lives at backend/scripts/,

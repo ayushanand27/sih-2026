@@ -55,9 +55,7 @@ BHASHINI_PIPELINE_CONFIG_URL = (
 )
 # Public Bhashini translation pipeline id (not a secret); override if MeitY
 # assigns a dedicated pipeline to your project.
-BHASHINI_PIPELINE_ID = os.getenv(
-    "BHASHINI_PIPELINE_ID", "64392f96daac500b55c543cd"
-)
+BHASHINI_PIPELINE_ID = os.getenv("BHASHINI_PIPELINE_ID", "64392f96daac500b55c543cd")
 BHASHINI_CONFIG_TIMEOUT = 10.0
 BHASHINI_INFERENCE_TIMEOUT = 15.0
 # Used when pipeline config omits pipelineInferenceAPIEndPoint (some Udyat

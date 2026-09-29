@@ -175,8 +175,7 @@ _IP_PATENT_INTENT = re.compile(
     re.I,
 )
 _IP_PATENT_SOURCE = re.compile(
-    r"Patents?_Act|Patent_Office|IPIndia_Patent|PIB_TKDL|"
-    r"Patentability_Guidelines",
+    r"Patents?_Act|Patent_Office|IPIndia_Patent|PIB_TKDL|" r"Patentability_Guidelines",
     re.I,
 )
 _IP_PATENT_TEXT = re.compile(
@@ -261,8 +260,8 @@ def ip_patent_context_abstention() -> str:
     return (
         f"{ABSTENTION_MARKER}\n"
         "Do you mean intellectual-property patentability under the Patents Act, 1970 "
-        "(e.g. Section 3), or regulatory classification as a \"patent or proprietary "
-        "medicine\" under the Drugs & Cosmetics Act?"
+        '(e.g. Section 3), or regulatory classification as a "patent or proprietary '
+        'medicine" under the Drugs & Cosmetics Act?'
     )
 
 

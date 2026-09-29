@@ -17,9 +17,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 _bearer = HTTPBearer(auto_error=False)
 
-AUTH_SECRET = os.getenv(
-    "AUTH_SECRET", "change-me-in-production-use-long-random-string"
-)
+AUTH_SECRET = os.getenv("AUTH_SECRET", "change-me-in-production-use-long-random-string")
 TOKEN_TTL_HOURS = int(os.getenv("AUTH_TOKEN_TTL_HOURS", "168"))
 
 
@@ -35,7 +33,9 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     name: str = Field(min_length=1)
     email: str = Field(min_length=3)
-    mobile: str = Field(min_length=7, description="Mobile number; country code optional.")
+    mobile: str = Field(
+        min_length=7, description="Mobile number; country code optional."
+    )
     password: str = Field(min_length=6)
 
 
@@ -76,7 +76,9 @@ def _user_response(user) -> AuthUserResponse:
     )
 
 
-def create_access_token(*, user_id: str, name: str, remember_me: bool) -> tuple[str, int]:
+def create_access_token(
+    *, user_id: str, name: str, remember_me: bool
+) -> tuple[str, int]:
     ttl_hours = TOKEN_TTL_HOURS if remember_me else min(TOKEN_TTL_HOURS, 24)
     expires_delta = timedelta(hours=ttl_hours)
     expires_at = datetime.now(timezone.utc) + expires_delta
@@ -93,7 +95,9 @@ def decode_access_token(token: str) -> dict:
     try:
         return jwt.decode(token, AUTH_SECRET, algorithms=["HS256"])
     except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=401, detail="Invalid or expired session.") from exc
+        raise HTTPException(
+            status_code=401, detail="Invalid or expired session."
+        ) from exc
 
 
 def get_current_user(
@@ -115,7 +119,9 @@ def get_current_user(
 def login(body: LoginRequest) -> AuthTokenResponse:
     user = get_auth_store().authenticate(body.identifier, body.password)
     if user is None:
-        raise HTTPException(status_code=401, detail="Incorrect email/mobile or password.")
+        raise HTTPException(
+            status_code=401, detail="Incorrect email/mobile or password."
+        )
     token, expires_in = create_access_token(
         user_id=user.id, name=user.name, remember_me=body.remember_me
     )
@@ -148,7 +154,9 @@ def register(body: RegisterRequest) -> AuthTokenResponse:
 
 
 @router.get("/me", response_model=AuthUserResponse)
-def me(current: Annotated[AuthUserResponse, Depends(get_current_user)]) -> AuthUserResponse:
+def me(
+    current: Annotated[AuthUserResponse, Depends(get_current_user)]
+) -> AuthUserResponse:
     return current
 
 

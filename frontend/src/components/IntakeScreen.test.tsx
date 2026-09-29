@@ -11,7 +11,7 @@ describe("IntakeScreen jurisdiction toggle", () => {
   it("lets the user pick India or International before starting", async () => {
     const user = userEvent.setup();
     const onStart = jest.fn();
-    render(<IntakeScreen onStart={onStart} />);
+    render(<IntakeScreen onStart={onStart} onBack={jest.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /^india$/i }));
     await user.click(screen.getByRole("button", { name: /start asking questions/i }));
@@ -22,7 +22,7 @@ describe("IntakeScreen jurisdiction toggle", () => {
   it("passes international jurisdiction when that toggle is selected", async () => {
     const user = userEvent.setup();
     const onStart = jest.fn();
-    render(<IntakeScreen onStart={onStart} />);
+    render(<IntakeScreen onStart={onStart} onBack={jest.fn()} />);
 
     await user.click(screen.getByRole("button", { name: /^international$/i }));
     await user.click(screen.getByRole("button", { name: /start asking questions/i }));

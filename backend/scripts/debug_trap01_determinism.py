@@ -1,4 +1,5 @@
 """Debug TRAP_01 retrieval path: chunk IDs pre/post rerank across N runs."""
+
 from __future__ import annotations
 
 import asyncio
@@ -14,7 +15,7 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 from generation.prompts import is_broad_query
-from graph.nodes import _fused_top_k, _rerank_top_k, rerank_node
+from graph.nodes import _fused_top_k, _rerank_top_k
 from retrieval.bm25_search import search as bm25_search
 from retrieval.dense_search import search as dense_search
 from retrieval.fusion import fuse
@@ -36,9 +37,7 @@ async def one_run(run_idx: int) -> dict:
         bm25_search, TRAP_01_QUERY, top_k=fused_k, jurisdiction=JURISDICTION
     )
     dense = await dense_search(TRAP_01_QUERY, top_k=fused_k, jurisdiction=JURISDICTION)
-    fused = await fuse(
-        bm25, dense, top_k=fused_k, jurisdiction=JURISDICTION
-    )
+    fused = await fuse(bm25, dense, top_k=fused_k, jurisdiction=JURISDICTION)
     reranked = await asyncio.to_thread(
         rerank_sync, TRAP_01_QUERY, fused, top_k=rerank_k
     )
@@ -68,7 +67,9 @@ def _set_sig(rows: list[dict], key: str) -> list[frozenset]:
 async def main() -> None:
     print(f"Query: {TRAP_01_QUERY!r}")
     print(f"jurisdiction={JURISDICTION} broad_query={is_broad_query(TRAP_01_QUERY)}")
-    print(f"fused_top_k={_fused_top_k(TRAP_01_QUERY)} rerank_top_k={_rerank_top_k(TRAP_01_QUERY)}")
+    print(
+        f"fused_top_k={_fused_top_k(TRAP_01_QUERY)} rerank_top_k={_rerank_top_k(TRAP_01_QUERY)}"
+    )
     print(f"Runs: {RUNS}\n")
 
     rows = []
@@ -91,7 +92,9 @@ async def main() -> None:
                 if s != sigs[0]:
                     only_here = s - sigs[0]
                     only_baseline = sigs[0] - s
-                    print(f"    run {i+1} diff +{len(only_here)} -{len(only_baseline)} vs run1")
+                    print(
+                        f"    run {i+1} diff +{len(only_here)} -{len(only_baseline)} vs run1"
+                    )
 
     print("\n--- Ordered top-5 fused (run 1 vs last) ---")
     print("run1:", rows[0]["fused_ids"][:5])

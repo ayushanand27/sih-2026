@@ -1,4 +1,5 @@
 """One-off retrieval diagnosis for benchmark failures (Task 2). Not part of CI."""
+
 import asyncio
 import json
 import sys
@@ -15,9 +16,8 @@ from generation.prompts import is_broad_query
 from graph.nodes import (
     RERANK_SCORE_THRESHOLD,
     _fused_top_k,
-    _rerank_top_k,
-    retrieve,
     rerank_node,
+    retrieve,
     retry_rewrite_query,
 )
 from graph.state import GraphState
@@ -33,7 +33,12 @@ CASES = {
         "markers": ["section 6", "access and benefit", "benefit sharing"],
     },
     "INTL_05": {
-        "markers": ["patent cooperation treaty", " pct ", "pct)", "international application"],
+        "markers": [
+            "patent cooperation treaty",
+            " pct ",
+            "pct)",
+            "international application",
+        ],
     },
 }
 
@@ -43,7 +48,9 @@ def _chunk_relevant(text: str, markers: list[str]) -> bool:
     return any(m in low for m in markers)
 
 
-async def diagnose_case(case_id: str, query: str, jurisdiction: str, markers: list[str]):
+async def diagnose_case(
+    case_id: str, query: str, jurisdiction: str, markers: list[str]
+):
     state: GraphState = {
         "query": query,
         "rewritten_query": query,

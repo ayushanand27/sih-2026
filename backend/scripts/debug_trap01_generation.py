@@ -4,6 +4,7 @@ Loads top-5 reranked chunk IDs from scripts/debug_trap01_runs.json (run 1),
 fetches chunk text from the DB, and calls the same generation path as the
 graph without re-running retrieval.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -151,7 +152,9 @@ async def main() -> None:
         "agenerate": ag_rows,
         "generate_answer": ga_rows,
     }
-    out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
+    out_path.write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     print(f"\nWrote {out_path.name}")
 
 

@@ -45,10 +45,8 @@ import logging
 import os
 import re
 import uuid
-from datetime import datetime, timezone
-import uuid
-from datetime import datetime, timezone
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
 
@@ -59,8 +57,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from api.auth_routes import router as auth_router
 from api.asr import UnsupportedAudioFormat, transcribe_audio
+from api.auth_routes import router as auth_router
 from api.translation import TARGET_LANGUAGE_CODES, translate_text
 from api.tts import synthesize_speech
 from compliance.form_generator import UnknownFormId, generate_form_docx
@@ -122,6 +120,7 @@ def _audit_log_query(
         parts.append(f"question={question!r}")
     log.info(" ".join(parts))
     return request_id
+
 
 # 90s, not 60s: a multi-turn query (chat history present) triggers its own
 # rewrite LLM call before retrieval even starts, and the bounded retry can
@@ -700,8 +699,8 @@ async def run_query(
     result = await _invoke_graph(app_graph, english_question, history, jurisdiction)
     english_answer = result["answer"]
 
-    translated_answer, audio_base64, answer_degraded = (
-        await _translate_and_maybe_speak(english_answer, language, synthesize_audio)
+    translated_answer, audio_base64, answer_degraded = await _translate_and_maybe_speak(
+        english_answer, language, synthesize_audio
     )
     translation_degraded = question_degraded or answer_degraded
 

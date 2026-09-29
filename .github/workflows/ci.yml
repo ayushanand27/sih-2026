@@ -46,8 +46,29 @@ jobs:
       - run: pip install -r requirements.txt
       # Full suite needs Postgres+pgvector, BM25 index, and Groq (see test file headers).
       # CI runs the offline-safe subset plus auth and API contract tests.
-      - run: python -m pytest tests/test_auth.py tests/test_api_contract.py tests/test_sources_endpoint.py tests/test_form_generator.py tests/test_compliance_flags.py tests/test_citation_matcher.py tests/test_forms.py tests/test_asr.py tests/test_formulation_and_response_contract.py tests/test_knowledge_graph.py tests/test_trap01_ip_patent_guard.py tests/test_translation_term_protection.py -q
-      - run: python -m pytest --collect-only -q
+      # Deselected tests need the gitignored corpus/indexes (bm25.pkl, knowledge_graph.json) or live translation.
+      - run: >
+          python -m pytest -q
+          tests/test_auth.py
+          tests/test_api_contract.py
+          tests/test_sources_endpoint.py
+          tests/test_form_generator.py
+          tests/test_compliance_flags.py
+          tests/test_citation_matcher.py
+          tests/test_forms.py
+          tests/test_asr.py
+          tests/test_formulation_and_response_contract.py
+          tests/test_knowledge_graph.py
+          tests/test_trap01_ip_patent_guard.py
+          tests/test_translation_term_protection.py
+          --deselect tests/test_sources_endpoint.py::test_real_india_source_file_is_served
+          --deselect tests/test_sources_endpoint.py::test_real_international_source_file_is_served
+          --deselect tests/test_forms.py::test_run_query_attaches_no_forms_on_a_real_abstention
+          --deselect tests/test_knowledge_graph.py::test_knowledge_graph_file_exists
+          --deselect tests/test_knowledge_graph.py::test_domestic_tk_tag_surfaces_real_international_counterpart
+          --deselect tests/test_knowledge_graph.py::test_related_provisions_carry_deterministic_second_hop
+          --deselect tests/test_knowledge_graph.py::test_expand_related_provisions_node_end_to_end
+          --deselect tests/test_translation_term_protection.py::test_devanagari_input_resolves_to_canonical_english_term
 
   docker-build:
     runs-on: ubuntu-latest

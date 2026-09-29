@@ -75,7 +75,11 @@ def test_register_and_login(auth_client: TestClient):
 
     login = auth_client.post(
         "/auth/login",
-        json={"identifier": "test@example.com", "password": "secret1", "remember_me": True},
+        json={
+            "identifier": "test@example.com",
+            "password": "secret1",
+            "remember_me": True,
+        },
     )
     assert login.status_code == 200
     assert login.json()["access_token"] != token or login.json()["access_token"]

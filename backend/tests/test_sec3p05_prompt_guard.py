@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from generation.prompts import (
-    SYSTEM_PROMPT,
-    should_force_ip_patent_context_abstention,
-)
+from generation.prompts import SYSTEM_PROMPT, should_force_ip_patent_context_abstention
 
 SEC3P_05_QUERY = (
     "Are classical Bhasma preparations like Swarna Bhasma eligible for "

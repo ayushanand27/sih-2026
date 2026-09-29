@@ -110,9 +110,7 @@ def _candidate_tags(
     return candidates
 
 
-def _provision_dict(
-    related_tag: str, relation: str, tag_examples: dict
-) -> dict:
+def _provision_dict(related_tag: str, relation: str, tag_examples: dict) -> dict:
     example = tag_examples[related_tag]
     return {
         "tag": related_tag,

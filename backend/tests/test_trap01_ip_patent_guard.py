@@ -106,7 +106,9 @@ async def test_generate_answer_does_not_abstain_when_patents_act_in_context():
     from unittest.mock import AsyncMock, patch
 
     with patch("graph.nodes.agenerate", new_callable=AsyncMock) as mock_gen:
-        mock_gen.return_value = "Eligible if inventive step is shown [Patents_Act_1970::p10::c1]."
+        mock_gen.return_value = (
+            "Eligible if inventive step is shown [Patents_Act_1970::p10::c1]."
+        )
         result = await generate_answer(state)
     mock_gen.assert_awaited_once()
     assert result["flags"]["abstained"] is False

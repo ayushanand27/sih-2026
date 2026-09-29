@@ -9,19 +9,14 @@ from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 REPO_ROOT = BACKEND_ROOT.parent
-TRAP_GATE_OUT = (
-    REPO_ROOT / "docs" / "work-session" / "artifacts" / "trap_gate"
-)
+TRAP_GATE_OUT = REPO_ROOT / "docs" / "work-session" / "artifacts" / "trap_gate"
 sys.path.insert(0, str(BACKEND_ROOT))
 
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
 
-from scripts.evaluate_pipeline import (  # noqa: E402
-    BENCHMARK_PATH,
-    run_single_eval,
-)
+from scripts.evaluate_pipeline import BENCHMARK_PATH, run_single_eval  # noqa: E402
 
 
 async def run_trap_gate(num_runs: int = 4) -> None:

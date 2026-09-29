@@ -1,4 +1,5 @@
 """Inspect pgvector HNSW index definition and session GUCs (no secrets printed)."""
+
 from __future__ import annotations
 
 import asyncio
